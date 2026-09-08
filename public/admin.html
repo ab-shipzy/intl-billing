@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShipzyCart · Intl Billing Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#0074ff;--navy:#00304a;--mint:#43edd4;--bg:#f4f7fb;--line:#e2e8f0;--red:#e11d48}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:#1e293b;font-size:14px}
+.mono{font-family:'JetBrains Mono',monospace}
+header{background:var(--navy);color:#fff;padding:12px 24px;display:flex;align-items:center;gap:16px}
+header h1{font-size:16px;font-weight:800}
+header h1 span{color:var(--mint)}
+nav{display:flex;gap:4px;margin-left:24px}
+nav button{background:transparent;border:none;color:#9fb3c8;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;font-size:13px}
+nav button.active{background:var(--blue);color:#fff}
+header .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;font-size:13px}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:#334155}
+.btn.danger{background:var(--red)}
+.btn.sm{padding:4px 10px;font-size:12px}
+main{padding:20px 24px;max-width:1400px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.toolbar input,.toolbar select{padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;background:#f8fafc;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+tr.row:hover{background:#f0f7ff;cursor:pointer}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:#e0edff;color:var(--blue)}
+.tag.mint{background:#d9fbf4;color:#0b7d6d}
+.tag.gray{background:#f1f5f9;color:#64748b}
+/* modal + drawer */
+.overlay{position:fixed;inset:0;background:rgba(0,20,35,.5);display:none;z-index:50}
+.overlay.open{display:block}
+.modal{position:fixed;top:4vh;left:50%;transform:translateX(-50%);width:min(880px,94vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;z-index:60;display:none;padding:22px}
+.modal.open{display:block}
+.drawer{position:fixed;top:0;right:-560px;width:min(560px,95vw);height:100vh;background:#fff;z-index:60;box-shadow:-8px 0 30px rgba(0,0,0,.15);transition:right .25s;overflow:auto;padding:22px}
+.drawer.open{right:0}
+h2{font-size:17px;font-weight:800;color:var(--navy);margin-bottom:14px}
+h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);margin:18px 0 8px;font-weight:700}
+.grid{display:grid;gap:10px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
+label{display:block;font-size:11px;font-weight:600;color:#64748b;margin-bottom:3px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff}
+textarea{resize:vertical;min-height:56px}
+.boxrow{display:grid;grid-template-columns:70px 1fr 1fr 1fr 90px 90px 34px;gap:8px;margin-bottom:8px;align-items:end}
+.wsum{background:#f0f7ff;border:1px solid #cfe3ff;border-radius:10px;padding:10px 14px;display:flex;gap:22px;margin-top:10px}
+.wsum b{font-family:'JetBrains Mono',monospace;color:var(--navy)}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:4px 10px;font-size:13px}
+.kv dt{color:#64748b}.kv dd{font-weight:600}
+.doc{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;font-size:13px}
+.doc a{color:var(--blue);text-decoration:none;font-weight:600;flex:1}
+.foot{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 20px;border-radius:10px;display:none;z-index:99;font-size:13px}
+#loginView{max-width:360px;margin:12vh auto}
+.hide{display:none!important}
+.amt{font-family:'JetBrains Mono',monospace;font-weight:600}
+</style>
+</head>
+<body>
+
+<div id="loginView">
+  <div class="card">
+    <h2>Shipzy<span style="color:var(--blue)">Cart</span> · Admin Login</h2>
+    <div class="grid" style="margin-top:10px">
+      <div><label>Username</label><input id="lu"></div>
+      <div><label>Password</label><input id="lp" type="password"></div>
+      <button class="btn" onclick="doLogin()">Login</button>
+    </div>
+  </div>
+</div>
+
+<div id="appView" class="hide">
+<header>
+  <h1>Shipzy<span>Cart</span> · Intl Billing</h1>
+  <nav>
+    <button data-tab="shipments" class="active" onclick="setTab('shipments')">Shipments</button>
+    <button data-tab="customers" onclick="setTab('customers')">Customers</button>
+    <button data-tab="consignees" onclick="setTab('consignees')">Consignees</button>
+    <button data-tab="settings" onclick="setTab('settings')">Settings</button>
+  </nav>
+  <div class="right"><button class="btn ghost" style="color:#9fb3c8;border-color:#28506b" onclick="logout()">Logout</button></div>
+</header>
+<main>
+
+<!-- SHIPMENTS -->
+<section id="tab-shipments">
+  <div class="toolbar">
+    <button class="btn" onclick="openShipForm()">＋ New Billing Item</button>
+    <input id="shipSearch" placeholder="Search AWB / customer / consignee…" oninput="renderShipments()" style="flex:1;min-width:220px">
+    <select id="shipCustFilter" onchange="renderShipments()"><option value="">All customers</option></select>
+  </div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr><th>Date</th><th>AWB</th><th>Customer</th><th>Carrier / Service</th><th>Consignee</th><th>Dest</th><th>Boxes</th><th>Chg. Wt (kg)</th><th>Rate</th><th>Amount ₹</th><th>Status</th></tr></thead>
+      <tbody id="shipBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- CUSTOMERS -->
+<section id="tab-customers" class="hide">
+  <div class="toolbar"><button class="btn" onclick="openCustForm()">＋ Onboard Customer</button></div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr><th>Code</th><th>Name</th><th>Email</th><th>Phone</th><th>GSTIN</th><th>Status</th><th></th></tr></thead>
+      <tbody id="custBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- CONSIGNEES -->
+<section id="tab-consignees" class="hide">
+  <div class="toolbar"><button class="btn" onclick="openConsForm()">＋ Add Consignee</button></div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr><th>Company</th><th>Contact</th><th>Country</th><th>Phone</th><th>Linked Customer</th><th></th></tr></thead>
+      <tbody id="consBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section id="tab-settings" class="hide">
+  <div class="card">
+    <h2>Service Providers &amp; Services</h2>
+    <div class="toolbar">
+      <input id="newProv" placeholder="New provider (e.g. FedEx)">
+      <button class="btn sm" onclick="addProvider()">Add Provider</button>
+    </div>
+    <div id="provList"></div>
+  </div>
+</section>
+</main>
+</div>
+
+<!-- shipment form modal -->
+<div class="overlay" id="ov" onclick="closeAll()"></div>
+<div class="modal" id="shipModal">
+  <h2 id="shipFormTitle">New Billing Item</h2>
+  <input type="hidden" id="s_id">
+  <h3>Customer &amp; Service</h3>
+  <div class="grid g3">
+    <div><label>Customer *</label><select id="s_customer"></select></div>
+    <div><label>Service Provider</label><select id="s_provider" onchange="fillServices()"></select></div>
+    <div><label>Service</label><select id="s_service"></select></div>
+    <div><label>AWB Number</label><input id="s_awb" class="mono"></div>
+    <div><label>Shipment Date</label><input id="s_date" type="date"></div>
+    <div><label>Status</label><select id="s_status"><option>Booked</option><option>In Transit</option><option>Delivered</option><option>Billed</option><option>Paid</option></select></div>
+  </div>
+  <h3>From Location</h3>
+  <div class="grid g3">
+    <div style="grid-column:span 3"><label>Address</label><input id="s_from_address"></div>
+    <div><label>Country</label><input id="s_from_country" value="India"></div>
+    <div><label>Pin Code</label><input id="s_from_pincode"></div>
+  </div>
+  <h3>To Location (Consignee)</h3>
+  <div class="grid g3">
+    <div><label>Pick from Consignee DB</label><select id="s_consignee" onchange="fillConsignee()"><option value="">— manual entry —</option></select></div>
+    <div><label>Company Name</label><input id="s_to_company"></div>
+    <div><label>Consignee Name</label><input id="s_to_contact"></div>
+    <div style="grid-column:span 3"><label>Address</label><input id="s_to_address"></div>
+    <div><label>Country</label><input id="s_to_country"></div>
+    <div><label>Phone</label><input id="s_to_phone"></div>
+  </div>
+  <h3>Boxes <button class="btn sm ghost" onclick="addBoxRow()" style="margin-left:8px">＋ Add box category</button></h3>
+  <div class="boxrow" style="margin-bottom:2px">
+    <label>Count</label><label>L (cm)</label><label>W (cm)</label><label>H (cm)</label><label>Wt/box (kg)</label><label>Divisor</label><label></label>
+  </div>
+  <div id="boxRows"></div>
+  <div class="wsum">
+    <span>Boxes: <b id="w_count">0</b></span>
+    <span>Actual: <b id="w_actual">0</b> kg</span>
+    <span>Volumetric: <b id="w_vol">0</b> kg</span>
+    <span>Chargeable: <b id="w_chg" style="color:var(--blue)">0</b> kg</span>
+  </div>
+  <h3>Invoice &amp; Terms</h3>
+  <div class="grid g4">
+    <div><label>Invoice No</label><input id="s_invoice_no"></div>
+    <div><label>Invoice Date</label><input id="s_invoice_date" type="date"></div>
+    <div><label>Invoice Value</label><input id="s_invoice_value" type="number" step="0.01"></div>
+    <div><label>Currency</label><select id="s_currency"><option>USD</option><option>EUR</option><option>GBP</option><option>AED</option><option>INR</option></select></div>
+    <div><label>Inco Terms</label><select id="s_incoterm"><option value="">—</option><option>EXW</option><option>FOB</option><option>CIF</option><option>CFR</option><option>DAP</option><option>DDP</option><option>FCA</option></select></div>
+    <div><label>Export Under</label><select id="s_export_type"><option value="">—</option><option>LUT</option><option>IGST</option><option>Non-commercial</option></select></div>
+    <div style="grid-column:span 2"><label>Item Description</label><input id="s_items_desc"></div>
+  </div>
+  <h3>Billing</h3>
+  <div class="grid g3">
+    <div><label>Rate (₹/kg)</label><input id="s_rate" type="number" step="0.01" oninput="calcAmount()"></div>
+    <div><label>Amount ₹ (auto = rate × chg. wt, editable)</label><input id="s_amount" type="number" step="0.01"></div>
+    <div><label>Notes</label><input id="s_notes"></div>
+  </div>
+  <div class="foot">
+    <button class="btn ghost" onclick="closeAll()">Cancel</button>
+    <button class="btn" onclick="saveShipment()">Save Billing Item</button>
+  </div>
+</div>
+
+<!-- shipment drawer -->
+<div class="drawer" id="shipDrawer">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h2 id="d_title">Shipment</h2>
+    <div>
+      <button class="btn sm ghost" onclick="editFromDrawer()">Edit</button>
+      <button class="btn sm danger" onclick="deleteShipment()">Delete</button>
+      <button class="btn sm ghost" onclick="closeAll()">✕</button>
+    </div>
+  </div>
+  <div id="d_body"></div>
+  <h3>Documents</h3>
+  <div id="d_docs"></div>
+  <input type="file" id="docFiles" multiple style="margin:8px 0">
+  <button class="btn sm" onclick="uploadDocs()">Upload to Shipment Drawer</button>
+</div>
+
+<!-- customer modal -->
+<div class="modal" id="custModal" style="width:min(560px,94vw)">
+  <h2 id="custFormTitle">Onboard Customer</h2>
+  <input type="hidden" id="c_id">
+  <div class="grid g2">
+    <div><label>Customer Code * (login ID)</label><input id="c_code" class="mono" placeholder="e.g. SZC-ACME"></div>
+    <div><label>Name *</label><input id="c_name"></div>
+    <div><label>Email</label><input id="c_email"></div>
+    <div><label>Phone</label><input id="c_phone"></div>
+    <div><label>GSTIN</label><input id="c_gstin" class="mono"></div>
+    <div><label>Portal Password <span id="c_pwhint">*</span></label><input id="c_password" placeholder="Set login password"></div>
+    <div style="grid-column:span 2"><label>Address</label><textarea id="c_address"></textarea></div>
+    <div><label>Active</label><select id="c_active"><option value="1">Yes</option><option value="0">No</option></select></div>
+  </div>
+  <div class="foot">
+    <button class="btn ghost" onclick="closeAll()">Cancel</button>
+    <button class="btn" onclick="saveCustomer()">Save</button>
+  </div>
+</div>
+
+<!-- consignee modal -->
+<div class="modal" id="consModal" style="width:min(560px,94vw)">
+  <h2 id="consFormTitle">Add Consignee</h2>
+  <input type="hidden" id="n_id">
+  <div class="grid g2">
+    <div><label>Company *</label><input id="n_company"></div>
+    <div><label>Contact Person</label><input id="n_contact"></div>
+    <div style="grid-column:span 2"><label>Address</label><textarea id="n_address"></textarea></div>
+    <div><label>Country</label><input id="n_country"></div>
+    <div><label>Phone</label><input id="n_phone"></div>
+    <div><label>Email</label><input id="n_email"></div>
+    <div><label>Link to Customer (optional)</label><select id="n_customer"><option value="">—</option></select></div>
+  </div>
+  <div class="foot">
+    <button class="btn ghost" onclick="closeAll()">Cancel</button>
+    <button class="btn" onclick="saveConsignee()">Save</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let customers=[],consignees=[],shipments=[],providers=[],services=[],currentShip=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2500);}
+async function api(url,opts={}){
+  const r=await fetch(url,{headers:opts.body&&!(opts.body instanceof FormData)?{'Content-Type':'application/json'}:{},...opts,body:opts.body&&!(opts.body instanceof FormData)?JSON.stringify(opts.body):opts.body});
+  if(r.status===401){$('appView').classList.add('hide');$('loginView').classList.remove('hide');throw new Error('auth');}
+  const j=await r.json();
+  if(!r.ok)throw new Error(j.error||'error');
+  return j;
+}
+
+// ---- auth ----
+async function doLogin(){
+  try{await api('/api/login',{method:'POST',body:{role:'admin',username:$('lu').value,password:$('lp').value}});boot();}
+  catch(e){toast('Login failed: '+e.message);}
+}
+async function logout(){await api('/api/logout',{method:'POST'});location.reload();}
+$('lp').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
+async function boot(){
+  try{
+    const me=await api('/api/me');
+    if(me.role!=='admin'){$('loginView').classList.remove('hide');return;}
+    $('loginView').classList.add('hide');$('appView').classList.remove('hide');
+    await Promise.all([loadCustomers(),loadConsignees(),loadServices()]);
+    await loadShipments();
+  }catch(e){}
+}
+
+function setTab(t){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  ['shipments','customers','consignees','settings'].forEach(x=>$('tab-'+x).classList.toggle('hide',x!==t));
+}
+function closeAll(){
+  $('ov').classList.remove('open');
+  document.querySelectorAll('.modal').forEach(m=>m.classList.remove('open'));
+  $('shipDrawer').classList.remove('open');
+}
+function openModal(id){$('ov').classList.add('open');$(id).classList.add('open');}
+
+// ---- customers ----
+async function loadCustomers(){
+  customers=await api('/api/customers');
+  $('custBody').innerHTML=customers.map(c=>`<tr>
+    <td class="mono">${esc(c.code)}</td><td><b>${esc(c.name)}</b></td><td>${esc(c.email)}</td><td>${esc(c.phone)}</td>
+    <td class="mono">${esc(c.gstin)}</td><td>${c.active?'<span class="tag mint">Active</span>':'<span class="tag gray">Inactive</span>'}</td>
+    <td><button class="btn sm ghost" onclick="openCustForm(${c.id})">Edit</button></td></tr>`).join('');
+  const opts='<option value="">Select customer…</option>'+customers.filter(c=>c.active).map(c=>`<option value="${c.id}">${esc(c.code)} — ${esc(c.name)}</option>`).join('');
+  $('s_customer').innerHTML=opts;
+  $('shipCustFilter').innerHTML='<option value="">All customers</option>'+customers.map(c=>`<option value="${c.id}">${esc(c.code)} — ${esc(c.name)}</option>`).join('');
+  $('n_customer').innerHTML='<option value="">—</option>'+customers.map(c=>`<option value="${c.id}">${esc(c.code)} — ${esc(c.name)}</option>`).join('');
+}
+function openCustForm(id){
+  const c=customers.find(x=>x.id===id)||{};
+  $('custFormTitle').textContent=id?'Edit Customer':'Onboard Customer';
+  $('c_id').value=id||'';$('c_code').value=c.code||'';$('c_code').disabled=!!id;
+  $('c_name').value=c.name||'';$('c_email').value=c.email||'';$('c_phone').value=c.phone||'';
+  $('c_gstin').value=c.gstin||'';$('c_address').value=c.address||'';$('c_password').value='';
+  $('c_password').placeholder=id?'Leave blank to keep current':'Set login password';
+  $('c_pwhint').textContent=id?'':'*';
+  $('c_active').value=c.active===0?'0':'1';
+  openModal('custModal');
+}
+async function saveCustomer(){
+  const id=$('c_id').value;
+  const body={code:$('c_code').value,name:$('c_name').value,email:$('c_email').value,phone:$('c_phone').value,gstin:$('c_gstin').value,address:$('c_address').value,password:$('c_password').value,active:$('c_active').value==='1'};
+  try{
+    if(id)await api('/api/customers/'+id,{method:'PUT',body});
+    else await api('/api/customers',{method:'POST',body});
+    closeAll();await loadCustomers();toast('Customer saved');
+  }catch(e){toast(e.message);}
+}
+
+// ---- consignees ----
+async function loadConsignees(){
+  consignees=await api('/api/consignees');
+  $('consBody').innerHTML=consignees.map(n=>`<tr>
+    <td><b>${esc(n.company)}</b></td><td>${esc(n.contact)}</td><td>${esc(n.country)}</td><td>${esc(n.phone)}</td>
+    <td>${esc(n.customer_name||'—')}</td>
+    <td><button class="btn sm ghost" onclick="openConsForm(${n.id})">Edit</button> <button class="btn sm danger" onclick="delConsignee(${n.id})">✕</button></td></tr>`).join('');
+  $('s_consignee').innerHTML='<option value="">— manual entry —</option>'+consignees.map(n=>`<option value="${n.id}">${esc(n.company)} (${esc(n.country)})</option>`).join('');
+}
+function openConsForm(id){
+  const n=consignees.find(x=>x.id===id)||{};
+  $('consFormTitle').textContent=id?'Edit Consignee':'Add Consignee';
+  $('n_id').value=id||'';$('n_company').value=n.company||'';$('n_contact').value=n.contact||'';
+  $('n_address').value=n.address||'';$('n_country').value=n.country||'';$('n_phone').value=n.phone||'';
+  $('n_email').value=n.email||'';$('n_customer').value=n.customer_id||'';
+  openModal('consModal');
+}
+async function saveConsignee(){
+  const id=$('n_id').value;
+  const body={company:$('n_company').value,contact:$('n_contact').value,address:$('n_address').value,country:$('n_country').value,phone:$('n_phone').value,email:$('n_email').value,customer_id:$('n_customer').value||null};
+  try{
+    if(id)await api('/api/consignees/'+id,{method:'PUT',body});
+    else await api('/api/consignees',{method:'POST',body});
+    closeAll();await loadConsignees();toast('Consignee saved');
+  }catch(e){toast(e.message);}
+}
+async function delConsignee(id){if(!confirm('Delete consignee?'))return;await api('/api/consignees/'+id,{method:'DELETE'});loadConsignees();}
+function fillConsignee(){
+  const n=consignees.find(x=>x.id==$('s_consignee').value);
+  if(!n)return;
+  $('s_to_company').value=n.company||'';$('s_to_contact').value=n.contact||'';
+  $('s_to_address').value=n.address||'';$('s_to_country').value=n.country||'';$('s_to_phone').value=n.phone||'';
+}
+
+// ---- settings ----
+async function loadServices(){
+  const d=await api('/api/settings/services');
+  providers=d.providers;services=d.services;
+  $('provList').innerHTML=providers.map(p=>{
+    const svc=services.filter(s=>s.provider_id===p.id);
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <b>${esc(p.name)}</b>
+        <button class="btn sm danger" onclick="delProvider(${p.id})">✕</button>
+        <input placeholder="Add service (e.g. Priority, Economy)" id="svcIn-${p.id}" style="max-width:260px;margin-left:auto">
+        <button class="btn sm" onclick="addService(${p.id})">Add Service</button>
+      </div>
+      <div style="margin-top:8px">${svc.map(s=>`<span class="tag" style="margin-right:6px">${esc(s.name)} <a href="#" onclick="delService(${s.id});return false" style="color:inherit;text-decoration:none">✕</a></span>`).join('')||'<span class="tag gray">No services yet</span>'}</div>
+    </div>`;
+  }).join('');
+  $('s_provider').innerHTML='<option value="">Select…</option>'+providers.map(p=>`<option>${esc(p.name)}</option>`).join('');
+  fillServices();
+}
+function fillServices(){
+  const p=providers.find(x=>x.name===$('s_provider').value);
+  const svc=p?services.filter(s=>s.provider_id===p.id):[];
+  $('s_service').innerHTML='<option value="">—</option>'+svc.map(s=>`<option>${esc(s.name)}</option>`).join('');
+}
+async function addProvider(){const n=$('newProv').value.trim();if(!n)return;await api('/api/settings/providers',{method:'POST',body:{name:n}});$('newProv').value='';loadServices();}
+async function delProvider(id){if(!confirm('Delete provider and its services?'))return;await api('/api/settings/providers/'+id,{method:'DELETE'});loadServices();}
+async function addService(pid){const el=$('svcIn-'+pid);const n=el.value.trim();if(!n)return;await api('/api/settings/services',{method:'POST',body:{provider_id:pid,name:n}});loadServices();}
+async function delService(id){await api('/api/settings/services/'+id,{method:'DELETE'});loadServices();}
+
+// ---- shipments ----
+async function loadShipments(){shipments=await api('/api/shipments');renderShipments();}
+function renderShipments(){
+  const q=($('shipSearch').value||'').toLowerCase(),cf=$('shipCustFilter').value;
+  const rows=shipments.filter(s=>{
+    if(cf&&String(s.customer_id)!==cf)return false;
+    if(!q)return true;
+    return [s.awb,s.customer_name,s.customer_code,s.to_company,s.provider].join(' ').toLowerCase().includes(q);
+  });
+  $('shipBody').innerHTML=rows.map(s=>`<tr class="row" onclick="openDrawer(${s.id})">
+    <td>${esc(s.ship_date)}</td><td class="mono"><b>${esc(s.awb)}</b></td>
+    <td>${esc(s.customer_code)}</td><td>${esc(s.provider)}${s.service?' · '+esc(s.service):''}</td>
+    <td>${esc(s.to_company)}</td><td>${esc(s.to_country)}</td>
+    <td>${s.box_count}</td><td class="amt">${fmt(s.chargeable_weight)}</td>
+    <td class="amt">${fmt(s.rate)}</td><td class="amt">₹${fmt(s.amount)}</td>
+    <td><span class="tag ${s.status==='Paid'?'mint':s.status==='Booked'?'gray':''}">${esc(s.status)}</span></td></tr>`).join('')
+    ||'<tr><td colspan="11" style="text-align:center;color:#94a3b8;padding:30px">No shipments yet</td></tr>';
+}
+
+function addBoxRow(b={}){
+  const div=document.createElement('div');
+  div.className='boxrow';
+  div.innerHTML=`<input type="number" class="bx-count" value="${b.count??1}" min="1" oninput="calcW()">
+    <input type="number" class="bx-l" value="${b.length??''}" step="0.1" oninput="calcW()">
+    <input type="number" class="bx-w" value="${b.width??''}" step="0.1" oninput="calcW()">
+    <input type="number" class="bx-h" value="${b.height??''}" step="0.1" oninput="calcW()">
+    <input type="number" class="bx-wt" value="${b.weight??''}" step="0.01" oninput="calcW()">
+    <select class="bx-div" onchange="calcW()"><option ${b.divisor==5000||!b.divisor?'selected':''}>5000</option><option ${b.divisor==4000?'selected':''}>4000</option><option ${b.divisor==6000?'selected':''}>6000</option></select>
+    <button class="btn sm danger" onclick="this.parentElement.remove();calcW()">✕</button>`;
+  $('boxRows').appendChild(div);
+}
+function getBoxes(){
+  return [...document.querySelectorAll('#boxRows .boxrow')].map(r=>({
+    count:r.querySelector('.bx-count').value,length:r.querySelector('.bx-l').value,
+    width:r.querySelector('.bx-w').value,height:r.querySelector('.bx-h').value,
+    weight:r.querySelector('.bx-wt').value,divisor:r.querySelector('.bx-div').value
+  }));
+}
+function calcW(){
+  let actual=0,vol=0,count=0;
+  getBoxes().forEach(b=>{
+    const n=Number(b.count)||1;count+=n;
+    actual+=n*(Number(b.weight)||0);
+    vol+=n*((Number(b.length)||0)*(Number(b.width)||0)*(Number(b.height)||0))/(Number(b.divisor)||5000);
+  });
+  const chg=Math.max(actual,vol);
+  $('w_count').textContent=count;$('w_actual').textContent=actual.toFixed(2);
+  $('w_vol').textContent=vol.toFixed(2);$('w_chg').textContent=chg.toFixed(2);
+  calcAmount();
+  return chg;
+}
+function calcAmount(){
+  const chg=parseFloat($('w_chg').textContent)||0,rate=Number($('s_rate').value)||0;
+  if(rate)$('s_amount').value=(chg*rate).toFixed(2);
+}
+
+function openShipForm(s){
+  $('shipFormTitle').textContent=s?'Edit Billing Item':'New Billing Item';
+  $('s_id').value=s?s.id:'';
+  $('s_customer').value=s?s.customer_id:'';
+  $('s_provider').value=s?s.provider:'';fillServices();
+  $('s_service').value=s?s.service:'';
+  $('s_awb').value=s?.awb||'';$('s_date').value=s?.ship_date||new Date().toISOString().slice(0,10);
+  $('s_status').value=s?.status||'Booked';
+  $('s_from_address').value=s?.from_address||'';$('s_from_country').value=s?.from_country||'India';$('s_from_pincode').value=s?.from_pincode||'';
+  $('s_consignee').value=s?.consignee_id||'';
+  $('s_to_company').value=s?.to_company||'';$('s_to_contact').value=s?.to_contact||'';
+  $('s_to_address').value=s?.to_address||'';$('s_to_country').value=s?.to_country||'';$('s_to_phone').value=s?.to_phone||'';
+  $('s_invoice_no').value=s?.invoice_no||'';$('s_invoice_date').value=s?.invoice_date||'';
+  $('s_invoice_value').value=s?.invoice_value||'';$('s_currency').value=s?.currency||'USD';
+  $('s_incoterm').value=s?.incoterm||'';$('s_export_type').value=s?.export_type||'';
+  $('s_items_desc').value=s?.items_desc||'';
+  $('s_rate').value=s?.rate||'';$('s_amount').value=s?.amount||'';$('s_notes').value=s?.notes||'';
+  $('boxRows').innerHTML='';
+  (s?.boxes?.length?s.boxes:[{}]).forEach(b=>addBoxRow(b));
+  calcW();
+  if(s)$('s_amount').value=s.amount;
+  openModal('shipModal');
+}
+async function saveShipment(){
+  const id=$('s_id').value;
+  const body={
+    customer_id:$('s_customer').value,provider:$('s_provider').value,service:$('s_service').value,
+    awb:$('s_awb').value,ship_date:$('s_date').value,status:$('s_status').value,
+    from_address:$('s_from_address').value,from_country:$('s_from_country').value,from_pincode:$('s_from_pincode').value,
+    consignee_id:$('s_consignee').value||null,
+    to_company:$('s_to_company').value,to_contact:$('s_to_contact').value,to_address:$('s_to_address').value,
+    to_country:$('s_to_country').value,to_phone:$('s_to_phone').value,
+    invoice_no:$('s_invoice_no').value,invoice_date:$('s_invoice_date').value,invoice_value:$('s_invoice_value').value,
+    currency:$('s_currency').value,incoterm:$('s_incoterm').value,export_type:$('s_export_type').value,
+    items_desc:$('s_items_desc').value,rate:$('s_rate').value,amount:$('s_amount').value,notes:$('s_notes').value,
+    boxes:getBoxes()
+  };
+  if(!body.customer_id)return toast('Select customer');
+  try{
+    if(id)await api('/api/shipments/'+id,{method:'PUT',body});
+    else await api('/api/shipments',{method:'POST',body});
+    closeAll();await loadShipments();toast('Billing item saved');
+  }catch(e){toast(e.message);}
+}
+
+async function openDrawer(id){
+  currentShip=await api('/api/shipments/'+id);
+  const s=currentShip;
+  $('d_title').textContent=(s.awb||'Shipment #'+s.id);
+  $('d_body').innerHTML=`
+    <dl class="kv">
+      <dt>Customer</dt><dd>${esc(s.customer_code)} — ${esc(s.customer_name)}</dd>
+      <dt>Carrier / Service</dt><dd>${esc(s.provider)}${s.service?' · '+esc(s.service):''}</dd>
+      <dt>Date / Status</dt><dd>${esc(s.ship_date)} · ${esc(s.status)}</dd>
+      <dt>From</dt><dd>${esc(s.from_address)}, ${esc(s.from_country)} ${esc(s.from_pincode)}</dd>
+      <dt>To</dt><dd>${esc(s.to_company)}${s.to_contact?' (Attn: '+esc(s.to_contact)+')':''}<br>${esc(s.to_address)}, ${esc(s.to_country)}<br>${esc(s.to_phone)}</dd>
+      <dt>Invoice</dt><dd>${esc(s.invoice_no)} · ${esc(s.invoice_date)} · ${esc(s.currency)} ${fmt(s.invoice_value)}</dd>
+      <dt>Terms</dt><dd>${esc(s.incoterm||'—')} · ${esc(s.export_type||'—')}</dd>
+      <dt>Items</dt><dd>${esc(s.items_desc||'—')}</dd>
+      <dt>Boxes</dt><dd>${s.boxes.map(b=>`${b.count} × ${b.length}×${b.width}×${b.height} cm @ ${b.weight} kg (÷${b.divisor})`).join('<br>')||'—'}</dd>
+      <dt>Weights</dt><dd class="mono">Actual ${fmt(s.actual_weight)} · Vol ${fmt(s.volumetric_weight)} · <b>Chg ${fmt(s.chargeable_weight)} kg</b></dd>
+      <dt>Billing</dt><dd class="mono">₹${fmt(s.rate)}/kg → <b style="color:var(--blue)">₹${fmt(s.amount)}</b></dd>
+      ${s.notes?`<dt>Notes</dt><dd>${esc(s.notes)}</dd>`:''}
+    </dl>`;
+  renderDocs();
+  $('ov').classList.add('open');$('shipDrawer').classList.add('open');
+}
+function renderDocs(){
+  $('d_docs').innerHTML=currentShip.documents.map(d=>`<div class="doc">
+    <a href="/api/documents/${d.id}/download">📄 ${esc(d.original_name)}</a>
+    <span style="color:#94a3b8;font-size:11px">${(d.size/1024).toFixed(0)} KB</span>
+    <button class="btn sm danger" onclick="delDoc(${d.id})">✕</button></div>`).join('')
+    ||'<div style="color:#94a3b8;font-size:13px">No documents yet</div>';
+}
+async function uploadDocs(){
+  const files=$('docFiles').files;
+  if(!files.length)return toast('Choose files first');
+  const arr=[];
+  for(const f of files){
+    const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('read failed'));r.readAsDataURL(f);});
+    arr.push({name:f.name,data:b64});
+  }
+  await api('/api/shipments/'+currentShip.id+'/documents',{method:'POST',body:{files:arr}});
+  $('docFiles').value='';
+  currentShip=await api('/api/shipments/'+currentShip.id);
+  renderDocs();toast('Documents uploaded');
+}
+async function delDoc(id){
+  await api('/api/documents/'+id,{method:'DELETE'});
+  currentShip=await api('/api/shipments/'+currentShip.id);
+  renderDocs();
+}
+function editFromDrawer(){closeAll();openShipForm(currentShip);}
+async function deleteShipment(){
+  if(!confirm('Delete this billing item and its documents?'))return;
+  await api('/api/shipments/'+currentShip.id,{method:'DELETE'});
+  closeAll();loadShipments();toast('Deleted');
+}
+
+boot();
+</script>
+</body>
+</html>
