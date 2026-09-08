@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, Splash, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field } from '../shared/shared.jsx';
 
-const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'FCA'];
+const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA', 'CPT', 'CIP'];
 const EXPORT_TYPES = ['', 'LUT', 'IGST', 'Non-commercial'];
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'AED', 'INR'];
 const STATUSES = ['Booked', 'In Transit', 'Delivered', 'Billed', 'Paid'];

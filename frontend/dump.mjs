@@ -1,0 +1,10 @@
+import fs from 'fs';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { groupLines } from './src/shared/labelparse.js';
+const doc = await getDocument({ data: new Uint8Array(fs.readFileSync(process.argv[2])), useSystemFonts: true }).promise;
+const page = await doc.getPage(1);
+const vp = page.getViewport({ scale: 1 });
+const tc = await page.getTextContent();
+const lines = groupLines(tc.items.map(t => ({ x: t.transform[4], y: t.transform[5], str: t.str })));
+console.log('width:', vp.width.toFixed(0));
+lines.forEach(l => console.log(l.items.map(i => `[${i.x.toFixed(0)}]${i.str}`).join(' ')));
