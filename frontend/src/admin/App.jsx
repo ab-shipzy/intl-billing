@@ -544,7 +544,7 @@ function App() {
   const [splash, setSplash] = useState(null);
 
   useEffect(() => {
-    api('/api/me').then(m => setAuthed(m.role === 'admin')).catch(() => setAuthed(false));
+    api('/api/me?p=admin').then(m => setAuthed(m.role === 'admin')).catch(() => setAuthed(false));
   }, []);
 
   const onLoggedIn = name => {

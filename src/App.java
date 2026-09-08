@@ -160,11 +160,19 @@ public class App {
         return m;
     }
 
-    static void setCookie(HttpExchange ex, String value, long maxAge) {
-        ex.getResponseHeaders().add("Set-Cookie", "tok=" + value + "; HttpOnly; Path=/; SameSite=Lax; Max-Age=" + maxAge);
+    static void setCookie(HttpExchange ex, String name, String value, long maxAge) {
+        ex.getResponseHeaders().add("Set-Cookie", name + "=" + value + "; HttpOnly; Path=/; SameSite=Lax; Max-Age=" + maxAge);
     }
 
-    static JSONObject auth(HttpExchange ex) { return Auth.verify(cookies(ex).get("tok")); }
+    // Separate cookies per portal so admin and customer sessions in the same browser don't clobber each other
+    static JSONObject authAdmin(HttpExchange ex) {
+        JSONObject p = Auth.verify(cookies(ex).get("atok"));
+        return isAdmin(p) ? p : null;
+    }
+    static JSONObject authCust(HttpExchange ex) {
+        JSONObject p = Auth.verify(cookies(ex).get("ctok"));
+        return isCustomer(p) ? p : null;
+    }
 
     static boolean isAdmin(JSONObject p) { return p != null && "admin".equals(p.optString("role")); }
     static boolean isCustomer(JSONObject p) { return p != null && "customer".equals(p.optString("role")); }
@@ -209,7 +217,7 @@ public class App {
             Matcher mt;
 
             if (p.equals("/api/login") && m.equals("POST")) { login(ex); return; }
-            if (p.equals("/api/logout") && m.equals("POST")) { setCookie(ex, "", 0); ok(ex); return; }
+            if (p.equals("/api/logout") && m.equals("POST")) { setCookie(ex, "atok", "", 0); setCookie(ex, "ctok", "", 0); ok(ex); return; }
             if (p.equals("/api/me") && m.equals("GET")) { me(ex); return; }
 
             // customer portal
@@ -219,8 +227,8 @@ public class App {
 
             // admin API
             if (p.startsWith("/api/")) {
-                JSONObject a = auth(ex);
-                if (!isAdmin(a)) { err(ex, 401, "unauthorized"); return; }
+                JSONObject a = authAdmin(ex);
+                if (a == null) { err(ex, 401, "unauthorized"); return; }
 
                 if (p.equals("/api/customers") && m.equals("GET")) { send(ex, 200, q("SELECT id, code, name, email, phone, gstin, address, active, created_at FROM customers ORDER BY name").toString()); return; }
                 if (p.equals("/api/customers") && m.equals("POST")) { custCreate(ex); return; }
@@ -280,7 +288,7 @@ public class App {
         String role = str(b, "role");
         if ("admin".equals(role)) {
             if (ADMIN_USER.equals(str(b, "username")) && ADMIN_PASS.equals(str(b, "password"))) {
-                setCookie(ex, Auth.sign(new JSONObject().put("role", "admin").put("exp", System.currentTimeMillis() + 12 * 3600_000L)), 43200);
+                setCookie(ex, "atok", Auth.sign(new JSONObject().put("role", "admin").put("exp", System.currentTimeMillis() + 12 * 3600_000L)), 43200);
                 send(ex, 200, "{\"ok\":true,\"role\":\"admin\"}");
             } else err(ex, 401, "Invalid credentials");
             return;
@@ -288,13 +296,17 @@ public class App {
         String code = str(b, "code").trim().toUpperCase();
         JSONObject cust = q1("SELECT * FROM customers WHERE code = ? AND active = 1", code);
         if (cust != null && Auth.checkPassword(str(b, "password"), cust.getString("password_hash"))) {
-            setCookie(ex, Auth.sign(new JSONObject().put("role", "customer").put("cid", cust.getLong("id")).put("exp", System.currentTimeMillis() + 12 * 3600_000L)), 43200);
+            setCookie(ex, "ctok", Auth.sign(new JSONObject().put("role", "customer").put("cid", cust.getLong("id")).put("exp", System.currentTimeMillis() + 12 * 3600_000L)), 43200);
             send(ex, 200, new JSONObject().put("ok", true).put("role", "customer").put("name", cust.getString("name")).put("code", cust.getString("code")).toString());
         } else err(ex, 401, "Invalid customer code or password");
     }
 
     static void me(HttpExchange ex) throws Exception {
-        JSONObject p = auth(ex);
+        String qs = ex.getRequestURI().getQuery();
+        String portal = qs != null && qs.contains("p=admin") ? "admin" : (qs != null && qs.contains("p=customer") ? "customer" : "");
+        JSONObject p = "admin".equals(portal) ? authAdmin(ex)
+                     : "customer".equals(portal) ? authCust(ex)
+                     : (authAdmin(ex) != null ? authAdmin(ex) : authCust(ex));
         if (p == null) { send(ex, 200, new JSONObject().put("role", JSONObject.NULL).toString()); return; }
         if (isCustomer(p)) {
             JSONObject c = q1("SELECT name, code FROM customers WHERE id = ?", p.getLong("cid"));
@@ -456,7 +468,8 @@ public class App {
     }
 
     static void docDownload(HttpExchange ex, long id) throws Exception {
-        JSONObject p = auth(ex);
+        JSONObject p = authAdmin(ex);
+        if (p == null) p = authCust(ex);
         if (p == null) { err(ex, 401, "unauthorized"); return; }
         JSONObject d = q1("SELECT * FROM documents WHERE id=?", id);
         if (d == null) { err(ex, 404, "not found"); return; }
@@ -477,14 +490,14 @@ public class App {
 
     // ---------- customer portal ----------
     static void myShipments(HttpExchange ex) throws Exception {
-        JSONObject p = auth(ex);
-        if (!isCustomer(p)) { err(ex, 401, "unauthorized"); return; }
+        JSONObject p = authCust(ex);
+        if (p == null) { err(ex, 401, "unauthorized"); return; }
         send(ex, 200, q("SELECT id, awb, provider, service, ship_date, from_pincode, from_country, to_company, to_country, box_count, chargeable_weight, rate, amount, status FROM shipments WHERE customer_id=? ORDER BY ship_date DESC, id DESC", p.getLong("cid")).toString());
     }
 
     static void myShipmentDetail(HttpExchange ex, long id) throws Exception {
-        JSONObject p = auth(ex);
-        if (!isCustomer(p)) { err(ex, 401, "unauthorized"); return; }
+        JSONObject p = authCust(ex);
+        if (p == null) { err(ex, 401, "unauthorized"); return; }
         JSONObject s = q1("SELECT * FROM shipments WHERE id=? AND customer_id=?", id, p.getLong("cid"));
         if (s == null) { err(ex, 404, "not found"); return; }
         s.put("boxes", q("SELECT count, length, width, height, weight, divisor FROM boxes WHERE shipment_id=?", id));

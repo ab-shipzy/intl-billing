@@ -109,7 +109,7 @@ function App() {
   const [splash, setSplash] = useState(null);
 
   useEffect(() => {
-    api('/api/me').then(m => setMe(m.role === 'customer' ? m : null)).catch(() => setMe(null));
+    api('/api/me?p=customer').then(m => setMe(m.role === 'customer' ? m : null)).catch(() => setMe(null));
   }, []);
 
   const onLoggedIn = r => {
