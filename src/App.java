@@ -44,11 +44,13 @@ public class App {
     static class Sse { long cid; HttpExchange ex; OutputStream os; }
     static final List<Sse> SSE_CLIENTS = new CopyOnWriteArrayList<>();
 
-    static void notifyCustomer(Long cid) {
+    static void notifyCustomer(Long cid) { notifyCustomer(cid, "shipments"); }
+
+    static void notifyCustomer(Long cid, String event) {
         if (cid == null) return;
         for (Sse c : SSE_CLIENTS) {
             if (c.cid != cid) continue;
-            try { c.os.write("event: shipments\ndata: {}\n\n".getBytes(StandardCharsets.UTF_8)); c.os.flush(); }
+            try { c.os.write(("event: " + event + "\ndata: {}\n\n").getBytes(StandardCharsets.UTF_8)); c.os.flush(); }
             catch (Exception e) { SSE_CLIENTS.remove(c); try { c.ex.close(); } catch (Exception ignored) {} }
         }
     }
@@ -91,7 +93,9 @@ public class App {
             "CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, provider_id INTEGER NOT NULL, name TEXT NOT NULL)",
             "CREATE TABLE IF NOT EXISTS shipments (id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL, from_address TEXT, from_country TEXT DEFAULT 'India', from_pincode TEXT, consignee_id INTEGER, to_company TEXT, to_contact TEXT, to_address TEXT, to_country TEXT, to_phone TEXT, provider TEXT, service TEXT, awb TEXT, ship_date TEXT, incoterm TEXT, export_type TEXT, invoice_no TEXT, invoice_date TEXT, invoice_value REAL, currency TEXT DEFAULT 'USD', items_desc TEXT, actual_weight REAL DEFAULT 0, volumetric_weight REAL DEFAULT 0, chargeable_weight REAL DEFAULT 0, box_count INTEGER DEFAULT 0, rate REAL DEFAULT 0, amount REAL DEFAULT 0, status TEXT DEFAULT 'Booked', notes TEXT, created_at TEXT DEFAULT (datetime('now')))",
             "CREATE TABLE IF NOT EXISTS boxes (id INTEGER PRIMARY KEY AUTOINCREMENT, shipment_id INTEGER NOT NULL, count INTEGER DEFAULT 1, length REAL, width REAL, height REAL, weight REAL, divisor INTEGER DEFAULT 5000)",
-            "CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY AUTOINCREMENT, shipment_id INTEGER NOT NULL, stored_name TEXT NOT NULL, original_name TEXT NOT NULL, size INTEGER, uploaded_at TEXT DEFAULT (datetime('now')))"
+            "CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY AUTOINCREMENT, shipment_id INTEGER NOT NULL, stored_name TEXT NOT NULL, original_name TEXT NOT NULL, size INTEGER, uploaded_at TEXT DEFAULT (datetime('now')))",
+            "CREATE TABLE IF NOT EXISTS kyc_docs (id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL, category TEXT NOT NULL, stored_name TEXT NOT NULL, original_name TEXT NOT NULL, size INTEGER, remark TEXT, uploaded_by TEXT DEFAULT 'admin', uploaded_at TEXT DEFAULT (datetime('now')))",
+            "CREATE TABLE IF NOT EXISTS spot_rates (id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL, from_country TEXT DEFAULT 'India', from_state TEXT, from_address TEXT, to_country TEXT, to_address TEXT, box_count INTEGER, dimensions TEXT, expected_weight REAL, rate REAL, status TEXT DEFAULT 'Given', awb TEXT, remark TEXT, created_at TEXT DEFAULT (datetime('now')))"
         };
         synchronized (db) {
             try (Statement st = db.createStatement()) {
@@ -232,6 +236,9 @@ public class App {
     static final Pattern P_DOC_ID = Pattern.compile("^/api/documents/(\\d+)$");
     static final Pattern P_DOC_DL = Pattern.compile("^/api/documents/(\\d+)/download$");
     static final Pattern P_MY_SHIP_ID = Pattern.compile("^/api/my/shipments/(\\d+)$");
+    static final Pattern P_KYC_ID = Pattern.compile("^/api/kyc/(\\d+)$");
+    static final Pattern P_KYC_DL = Pattern.compile("^/api/kyc/(\\d+)/download$");
+    static final Pattern P_SPOT_ID = Pattern.compile("^/api/spot-rates/(\\d+)$");
 
     static void route(HttpExchange ex) {
         try {
@@ -245,6 +252,22 @@ public class App {
 
             // customer portal
             if (p.equals("/api/my/events") && m.equals("GET")) { myEvents(ex); return; }
+            if (p.equals("/api/my/kyc") && m.equals("GET")) {
+                JSONObject cu = authCust(ex);
+                if (cu == null) { err(ex, 401, "unauthorized"); return; }
+                kycList(ex, cu.getLong("cid")); return;
+            }
+            if (p.equals("/api/my/kyc") && m.equals("POST")) {
+                JSONObject cu = authCust(ex);
+                if (cu == null) { err(ex, 401, "unauthorized"); return; }
+                kycUpload(ex, cu.getLong("cid"), "customer"); return;
+            }
+            if (p.equals("/api/my/spot-rates") && m.equals("GET")) {
+                JSONObject cu = authCust(ex);
+                if (cu == null) { err(ex, 401, "unauthorized"); return; }
+                spotList(ex, cu.getLong("cid")); return;
+            }
+            if ((mt = P_KYC_DL.matcher(p)).matches() && m.equals("GET")) { kycDownload(ex, Long.parseLong(mt.group(1))); return; }
             if (p.equals("/api/my/shipments") && m.equals("GET")) { myShipments(ex); return; }
             if ((mt = P_MY_SHIP_ID.matcher(p)).matches() && m.equals("GET")) { myShipmentDetail(ex, Long.parseLong(mt.group(1))); return; }
             if ((mt = P_DOC_DL.matcher(p)).matches() && m.equals("GET")) { docDownload(ex, Long.parseLong(mt.group(1))); return; }
@@ -293,6 +316,16 @@ public class App {
                 if ((mt = P_SHIP_ID.matcher(p)).matches() && m.equals("GET")) { shipDetail(ex, Long.parseLong(mt.group(1))); return; }
                 if ((mt = P_SHIP_ID.matcher(p)).matches() && m.equals("PUT")) { shipSave(ex, Long.parseLong(mt.group(1))); return; }
                 if ((mt = P_SHIP_ID.matcher(p)).matches() && m.equals("DELETE")) { shipDelete(ex, Long.parseLong(mt.group(1))); return; }
+
+                if (p.equals("/api/kyc") && m.equals("GET")) { kycList(ex, null); return; }
+                if (p.equals("/api/kyc") && m.equals("POST")) { kycUpload(ex, null, "admin"); return; }
+                if ((mt = P_KYC_ID.matcher(p)).matches() && m.equals("PUT")) { kycUpdate(ex, Long.parseLong(mt.group(1))); return; }
+                if ((mt = P_KYC_ID.matcher(p)).matches() && m.equals("DELETE")) { kycDelete(ex, Long.parseLong(mt.group(1))); return; }
+
+                if (p.equals("/api/spot-rates") && m.equals("GET")) { spotList(ex, null); return; }
+                if (p.equals("/api/spot-rates") && m.equals("POST")) { spotSave(ex, null); return; }
+                if ((mt = P_SPOT_ID.matcher(p)).matches() && m.equals("PUT")) { spotSave(ex, Long.parseLong(mt.group(1))); return; }
+                if ((mt = P_SPOT_ID.matcher(p)).matches() && m.equals("DELETE")) { spotDelete(ex, Long.parseLong(mt.group(1))); return; }
 
                 if ((mt = P_SHIP_DOCS.matcher(p)).matches() && m.equals("POST")) { docUpload(ex, Long.parseLong(mt.group(1))); return; }
                 if ((mt = P_DOC_ID.matcher(p)).matches() && m.equals("DELETE")) { docDelete(ex, Long.parseLong(mt.group(1))); return; }
@@ -462,6 +495,145 @@ public class App {
         ok(ex);
     }
 
+    static String qparam(HttpExchange ex, String key) {
+        String q = ex.getRequestURI().getQuery();
+        if (q == null) return null;
+        for (String kv : q.split("&")) {
+            int i = kv.indexOf('=');
+            if (i > 0 && kv.substring(0, i).equals(key))
+                return java.net.URLDecoder.decode(kv.substring(i + 1), StandardCharsets.UTF_8);
+        }
+        return null;
+    }
+
+    // decode + persist one base64 file; returns [storedName, size] or throws
+    static Object[] saveB64File(String name, String b64) throws Exception {
+        byte[] data = Base64.getMimeDecoder().decode(b64);
+        if (data.length > MAX_DOC_BYTES) throw new IllegalArgumentException(name + " exceeds 15 MB");
+        String ext = "";
+        int dot = name.lastIndexOf('.');
+        if (dot >= 0) ext = name.substring(dot);
+        byte[] rnd = new byte[4];
+        RNG.nextBytes(rnd);
+        StringBuilder hex = new StringBuilder();
+        for (byte x : rnd) hex.append(String.format("%02x", x));
+        String stored = System.currentTimeMillis() + "-" + hex + ext;
+        Files.write(new File(UPLOAD_DIR, stored).toPath(), data);
+        return new Object[]{stored, (long) data.length};
+    }
+
+    // ---------- KYC docs ----------
+    static void kycList(HttpExchange ex, Long onlyCustomer) throws Exception {
+        String cid = qparam(ex, "customer_id");
+        String sql = "SELECT k.*, c.name AS customer_name, c.code AS customer_code FROM kyc_docs k JOIN customers c ON c.id = k.customer_id";
+        JSONArray rows;
+        if (onlyCustomer != null) rows = q(sql + " WHERE k.customer_id=? ORDER BY k.uploaded_at DESC", onlyCustomer);
+        else if (cid != null && !cid.isEmpty()) rows = q(sql + " WHERE k.customer_id=? ORDER BY k.uploaded_at DESC", Long.parseLong(cid));
+        else rows = q(sql + " ORDER BY k.uploaded_at DESC");
+        send(ex, 200, rows.toString());
+    }
+
+    static void kycUpload(HttpExchange ex, Long forcedCustomer, String uploadedBy) throws Exception {
+        JSONObject b = jsonBody(ex);
+        Long cid = forcedCustomer != null ? forcedCustomer : lng(b, "customer_id");
+        if (cid == null) { err(ex, 400, "customer required"); return; }
+        String category = str(b, "category", "Other");
+        String remark = str(b, "remark");
+        JSONArray files = b.optJSONArray("files");
+        if (files == null || files.length() == 0) { err(ex, 400, "no files"); return; }
+        if (files.length() > 10) { err(ex, 400, "max 10 files per upload"); return; }
+        int saved = 0;
+        for (int i = 0; i < files.length(); i++) {
+            JSONObject f = files.getJSONObject(i);
+            String name = str(f, "name", "file");
+            Object[] st;
+            try { st = saveB64File(name, str(f, "data")); }
+            catch (IllegalArgumentException e) { err(ex, 400, e.getMessage()); return; }
+            exec("INSERT INTO kyc_docs (customer_id, category, stored_name, original_name, size, remark, uploaded_by) VALUES (?,?,?,?,?,?,?)",
+                cid, category, st[0], name, st[1], remark, uploadedBy);
+            saved++;
+        }
+        notifyCustomer(cid, "kyc");
+        send(ex, 200, new JSONObject().put("ok", true).put("count", saved).toString());
+    }
+
+    static void kycUpdate(HttpExchange ex, long id) throws Exception {
+        JSONObject b = jsonBody(ex);
+        exec("UPDATE kyc_docs SET category=?, remark=? WHERE id=?", str(b, "category", "Other"), str(b, "remark"), id);
+        JSONObject d = q1("SELECT customer_id FROM kyc_docs WHERE id=?", id);
+        if (d != null) notifyCustomer(d.getLong("customer_id"), "kyc");
+        ok(ex);
+    }
+
+    static void kycDelete(HttpExchange ex, long id) throws Exception {
+        JSONObject d = q1("SELECT * FROM kyc_docs WHERE id=?", id);
+        if (d != null) {
+            new File(UPLOAD_DIR, d.getString("stored_name")).delete();
+            exec("DELETE FROM kyc_docs WHERE id=?", id);
+            notifyCustomer(d.getLong("customer_id"), "kyc");
+        }
+        ok(ex);
+    }
+
+    static void kycDownload(HttpExchange ex, long id) throws Exception {
+        JSONObject p = authAdmin(ex);
+        if (p == null) p = authCust(ex);
+        if (p == null) { err(ex, 401, "unauthorized"); return; }
+        JSONObject d = q1("SELECT * FROM kyc_docs WHERE id=?", id);
+        if (d == null) { err(ex, 404, "not found"); return; }
+        if (isCustomer(p) && d.getLong("customer_id") != p.getLong("cid")) { err(ex, 403, "forbidden"); return; }
+        File f = new File(UPLOAD_DIR, d.getString("stored_name"));
+        if (!f.exists()) { err(ex, 404, "file missing"); return; }
+        String fname = d.getString("original_name").replaceAll("[\"\\r\\n]", "_");
+        ex.getResponseHeaders().set("Content-Type", "application/octet-stream");
+        ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + fname + "\"");
+        ex.sendResponseHeaders(200, f.length());
+        try (OutputStream os = ex.getResponseBody(); FileInputStream fis = new FileInputStream(f)) {
+            fis.transferTo(os);
+        }
+    }
+
+    // ---------- spot rates ----------
+    static void spotList(HttpExchange ex, Long onlyCustomer) throws Exception {
+        String cid = qparam(ex, "customer_id");
+        String sql = "SELECT r.*, c.name AS customer_name, c.code AS customer_code FROM spot_rates r JOIN customers c ON c.id = r.customer_id";
+        JSONArray rows;
+        if (onlyCustomer != null) rows = q(sql + " WHERE r.customer_id=? ORDER BY r.created_at DESC", onlyCustomer);
+        else if (cid != null && !cid.isEmpty()) rows = q(sql + " WHERE r.customer_id=? ORDER BY r.created_at DESC", Long.parseLong(cid));
+        else rows = q(sql + " ORDER BY r.created_at DESC");
+        send(ex, 200, rows.toString());
+    }
+
+    static void spotSave(HttpExchange ex, Long id) throws Exception {
+        JSONObject b = jsonBody(ex);
+        Long cid = lng(b, "customer_id");
+        if (cid == null) { err(ex, 400, "customer required"); return; }
+        Object[] vals = {
+            cid, str(b, "from_country", "India"), str(b, "from_state"), str(b, "from_address"),
+            str(b, "to_country"), str(b, "to_address"), (long) num(b, "box_count"), str(b, "dimensions"),
+            num(b, "expected_weight"), num(b, "rate"), str(b, "status", "Given"), str(b, "awb"), str(b, "remark")
+        };
+        long rid;
+        if (id == null) {
+            rid = exec("INSERT INTO spot_rates (customer_id, from_country, from_state, from_address, to_country, to_address, box_count, dimensions, expected_weight, rate, status, awb, remark) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", vals);
+        } else {
+            Object[] upd = new Object[vals.length + 1];
+            System.arraycopy(vals, 0, upd, 0, vals.length);
+            upd[vals.length] = id;
+            exec("UPDATE spot_rates SET customer_id=?, from_country=?, from_state=?, from_address=?, to_country=?, to_address=?, box_count=?, dimensions=?, expected_weight=?, rate=?, status=?, awb=?, remark=? WHERE id=?", upd);
+            rid = id;
+        }
+        notifyCustomer(cid, "spot");
+        send(ex, 200, new JSONObject().put("ok", true).put("id", rid).toString());
+    }
+
+    static void spotDelete(HttpExchange ex, long id) throws Exception {
+        JSONObject r = q1("SELECT customer_id FROM spot_rates WHERE id=?", id);
+        exec("DELETE FROM spot_rates WHERE id=?", id);
+        if (r != null) notifyCustomer(r.getLong("customer_id"), "spot");
+        ok(ex);
+    }
+
     // ---------- documents (JSON base64 upload) ----------
     static void docUpload(HttpExchange ex, long shipmentId) throws Exception {
         JSONObject b = jsonBody(ex);
@@ -472,20 +644,11 @@ public class App {
         for (int i = 0; i < files.length(); i++) {
             JSONObject f = files.getJSONObject(i);
             String name = str(f, "name", "file");
-            byte[] data;
-            try { data = Base64.getMimeDecoder().decode(str(f, "data")); }
+            Object[] st;
+            try { st = saveB64File(name, str(f, "data")); }
+            catch (IllegalArgumentException e) { err(ex, 400, e.getMessage()); return; }
             catch (Exception e) { err(ex, 400, "bad base64 for " + name); return; }
-            if (data.length > MAX_DOC_BYTES) { err(ex, 400, name + " exceeds 15 MB"); return; }
-            String ext = "";
-            int dot = name.lastIndexOf('.');
-            if (dot >= 0) ext = name.substring(dot);
-            byte[] rnd = new byte[4];
-            RNG.nextBytes(rnd);
-            StringBuilder hex = new StringBuilder();
-            for (byte x : rnd) hex.append(String.format("%02x", x));
-            String stored = System.currentTimeMillis() + "-" + hex + ext;
-            Files.write(new File(UPLOAD_DIR, stored).toPath(), data);
-            exec("INSERT INTO documents (shipment_id, stored_name, original_name, size) VALUES (?,?,?,?)", shipmentId, stored, name, (long) data.length);
+            exec("INSERT INTO documents (shipment_id, stored_name, original_name, size) VALUES (?,?,?,?)", shipmentId, st[0], name, st[1]);
             saved++;
         }
         send(ex, 200, new JSONObject().put("ok", true).put("count", saved).toString());
@@ -566,7 +729,7 @@ public class App {
     );
 
     static void serveStatic(HttpExchange ex, String p) throws Exception {
-        if (p.equals("/")) p = "/index.html";
+        if (p.equals("/") || p.equals("/kyc") || p.equals("/rates")) p = "/index.html";
         if (p.equals("/admin") || p.startsWith("/admin/")) p = "/admin.html";
         File root = new File("public").getCanonicalFile();
         File f = new File(root, p).getCanonicalFile();

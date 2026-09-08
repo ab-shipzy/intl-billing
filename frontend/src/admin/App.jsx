@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, Splash, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field } from '../shared/shared.jsx';
+import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, Splash, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
 
 const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA', 'CPT', 'CIP'];
 const EXPORT_TYPES = ['', 'LUT', 'IGST', 'Non-commercial'];
@@ -451,6 +451,7 @@ function ShipmentDrawer({ id, onClose, onEdit, onDeleted }) {
     onDeleted();
   };
 
+  const [tab, setTab] = useState('details');
   return (
     <Drawer onClose={onClose}>
       {!s ? <div className="center">Loading…</div> : (
@@ -463,11 +464,18 @@ function ShipmentDrawer({ id, onClose, onEdit, onDeleted }) {
               <button className="btn sm ghost" onClick={onClose}>✕</button>
             </div>
           </div>
-          <ShipmentDetail s={s} showCustomer />
-          <h3>Documents</h3>
-          <DocList docs={s.documents} onDelete={delDoc} />
-          <input type="file" id="docFiles" multiple style={{ margin: '8px 0' }} onChange={e => setFiles([...e.target.files])} />
-          <button className="btn sm" onClick={upload} disabled={busy}>{busy ? 'Uploading…' : 'Upload to Shipment Drawer'}</button>
+          <TabBar
+            tabs={[{ k: 'details', label: 'Details' }, { k: 'docs', label: 'Documents', badge: (s.documents || []).length || null }]}
+            active={tab} onChange={setTab}
+          />
+          {tab === 'details' && <ShipmentDetail s={s} showCustomer />}
+          {tab === 'docs' && (
+            <>
+              <DocList docs={s.documents} onDelete={delDoc} />
+              <input type="file" id="docFiles" multiple style={{ margin: '8px 0' }} onChange={e => setFiles([...e.target.files])} />
+              <button className="btn sm" onClick={upload} disabled={busy}>{busy ? 'Uploading…' : 'Upload to Shipment Drawer'}</button>
+            </>
+          )}
         </>
       )}
     </Drawer>
@@ -551,8 +559,250 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
   );
 }
 
+
+// ---------- KYC page (admin) ----------
+function KycTab({ customers }) {
+  const toast = useToast();
+  const [docs, setDocs] = useState(null);
+  const [filter, setFilter] = useState('');
+  const [upCust, setUpCust] = useState('');
+  const [category, setCategory] = useState(KYC_CATEGORIES[0]);
+  const [remark, setRemark] = useState('');
+  const [files, setFiles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(null); // doc being edited
+
+  const load = useCallback(() => {
+    api('/api/kyc' + (filter ? '?customer_id=' + filter : '')).then(setDocs).catch(e => { setDocs(d => d || []); toast(e.message, true); });
+  }, [filter]);
+  useEffect(() => { load(); }, [load]);
+
+  const upload = async () => {
+    if (!upCust) return toast('Select customer', true);
+    if (!files.length) return toast('Choose files first', true);
+    setBusy(true);
+    try {
+      const arr = [];
+      for (const f of files) {
+        if (f.size > 15 * 1024 * 1024) throw new Error(f.name + ' exceeds 15 MB');
+        arr.push({ name: f.name, data: await fileToB64(f) });
+      }
+      await api('/api/kyc', { method: 'POST', body: { customer_id: upCust, category, remark, files: arr } });
+      setFiles([]); setRemark('');
+      document.getElementById('akycFiles').value = '';
+      load();
+      toast('Documents uploaded');
+    } catch (e) { toast(e.message, true); } finally { setBusy(false); }
+  };
+
+  const del = async id => {
+    if (!confirm('Delete this KYC document?')) return;
+    await api('/api/kyc/' + id, { method: 'DELETE' });
+    load();
+  };
+  const saveEdit = async () => {
+    await api('/api/kyc/' + editing.id, { method: 'PUT', body: { category: editing.category, remark: editing.remark } });
+    setEditing(null); load(); toast('Updated');
+  };
+
+  return (
+    <section>
+      <div className="card">
+        <h2>Upload KYC Document</h2>
+        <div className="grid g4">
+          <Field label="Customer *">
+            <select className={upCust ? '' : 'invalid'} value={upCust} onChange={e => setUpCust(e.target.value)}>
+              <option value="">Select…</option>
+              {customers.map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Category">
+            <select value={category} onChange={e => setCategory(e.target.value)}>
+              {KYC_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </Field>
+          <Field label="Remark"><input value={remark} onChange={e => setRemark(e.target.value)} /></Field>
+          <Field label="Files"><input type="file" id="akycFiles" multiple onChange={e => setFiles([...e.target.files])} /></Field>
+        </div>
+        <div className="foot" style={{ marginTop: 10 }}>
+          <button className="btn" onClick={upload} disabled={busy}>{busy ? 'Uploading…' : 'Upload'}</button>
+        </div>
+      </div>
+      <div className="toolbar">
+        <select value={filter} onChange={e => setFilter(e.target.value)}>
+          <option value="">All customers</option>
+          {customers.map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
+        </select>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table>
+          <thead><tr><th>Date</th><th>Customer</th><th>Category</th><th>Document</th><th>Remark</th><th>By</th><th></th></tr></thead>
+          <tbody>
+            {docs === null && <tr><td colSpan={7} className="empty">Loading…</td></tr>}
+            {docs && docs.length === 0 && <tr><td colSpan={7} className="empty">No KYC documents</td></tr>}
+            {docs && docs.map(d => (
+              <tr key={d.id}>
+                <td>{(d.uploaded_at || '').slice(0, 10)}</td>
+                <td>{d.customer_code}</td>
+                <td><span className="tag">{d.category}</span></td>
+                <td><a href={`/api/kyc/${d.id}/download`} style={{ color: 'var(--blue)', fontWeight: 600, textDecoration: 'none' }}>📄 {d.original_name}</a></td>
+                <td>{d.remark}</td>
+                <td><span className={'tag ' + (d.uploaded_by === 'customer' ? 'mint' : 'gray')}>{d.uploaded_by}</span></td>
+                <td>
+                  <button className="btn sm ghost" onClick={() => setEditing({ ...d })}>Edit</button>{' '}
+                  <button className="btn sm danger" onClick={() => del(d.id)}>✕</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {editing && (
+        <Modal narrow title="Edit KYC Document" onClose={() => setEditing(null)}>
+          <div className="grid g2">
+            <Field label="Category">
+              <select value={editing.category} onChange={e => setEditing(s2 => ({ ...s2, category: e.target.value }))}>
+                {KYC_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Remark"><input value={editing.remark || ''} onChange={e => setEditing(s2 => ({ ...s2, remark: e.target.value }))} /></Field>
+          </div>
+          <div className="foot">
+            <button className="btn ghost" onClick={() => setEditing(null)}>Cancel</button>
+            <button className="btn" onClick={saveEdit}>Save</button>
+          </div>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
+// ---------- spot rates page (admin) ----------
+const SPOT_STATUSES = ['Given', 'Executed', 'Expired'];
+
+function SpotRateForm({ rate, customers, onSaved, onClose }) {
+  const toast = useToast();
+  const isEdit = !!rate;
+  const [f, setF] = useState(rate || {
+    customer_id: '', from_country: 'India', from_state: '', from_address: '',
+    to_country: '', to_address: '', box_count: '', dimensions: '', expected_weight: '',
+    rate: '', status: 'Given', awb: '', remark: ''
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setF(s2 => ({ ...s2, [k]: v }));
+  const save = async () => {
+    if (!f.customer_id) return toast('Select customer', true);
+    if (!f.rate) return toast('Enter rate', true);
+    setBusy(true);
+    try {
+      if (isEdit) await api('/api/spot-rates/' + rate.id, { method: 'PUT', body: f });
+      else await api('/api/spot-rates', { method: 'POST', body: f });
+      onSaved();
+    } catch (e) { toast(e.message, true); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title={isEdit ? 'Edit Spot Rate' : 'Give New Spot Rate'} onClose={onClose}>
+      <h3>Customer</h3>
+      <div className="grid g3">
+        <Field label="Customer *">
+          <select className={f.customer_id ? '' : 'invalid'} value={f.customer_id} onChange={e => set('customer_id', e.target.value)}>
+            <option value="">Select customer…</option>
+            {customers.filter(c => c.active).map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Status"><select value={f.status} onChange={e => set('status', e.target.value)}>{SPOT_STATUSES.map(x => <option key={x}>{x}</option>)}</select></Field>
+        <Field label="AWB (once executed)"><input className="mono" value={f.awb || ''} onChange={e => set('awb', e.target.value)} /></Field>
+      </div>
+      <h3>From</h3>
+      <div className="grid g3">
+        <Field label="Country"><input value={f.from_country || ''} onChange={e => set('from_country', e.target.value)} /></Field>
+        <Field label="State"><input value={f.from_state || ''} onChange={e => set('from_state', e.target.value)} /></Field>
+        <Field label="Address (if available)"><input value={f.from_address || ''} onChange={e => set('from_address', e.target.value)} /></Field>
+      </div>
+      <h3>Destination</h3>
+      <div className="grid g2">
+        <Field label="Country"><input value={f.to_country || ''} onChange={e => set('to_country', e.target.value)} /></Field>
+        <Field label="Address"><input value={f.to_address || ''} onChange={e => set('to_address', e.target.value)} /></Field>
+      </div>
+      <h3>Volume &amp; Rate</h3>
+      <div className="grid g4">
+        <Field label="No. of Boxes"><input type="number" value={f.box_count || ''} onChange={e => set('box_count', e.target.value)} /></Field>
+        <Field label="Dimensions"><input value={f.dimensions || ''} onChange={e => set('dimensions', e.target.value)} placeholder="e.g. 3× 40×30×30 cm" /></Field>
+        <Field label="Expected Dead Wt (kg)"><input type="number" step="0.01" value={f.expected_weight || ''} onChange={e => set('expected_weight', e.target.value)} /></Field>
+        <Field label="Rate Given (₹/kg) *"><input type="number" step="0.01" className={f.rate ? '' : 'invalid'} value={f.rate || ''} onChange={e => set('rate', e.target.value)} /></Field>
+        <Field label="Remark" className="span2"><input value={f.remark || ''} onChange={e => set('remark', e.target.value)} /></Field>
+      </div>
+      <div className="foot">
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save Spot Rate'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+function SpotRatesTab({ customers }) {
+  const toast = useToast();
+  const [rows, setRows] = useState(null);
+  const [filter, setFilter] = useState('');
+  const [form, setForm] = useState(null);
+
+  const load = useCallback(() => {
+    api('/api/spot-rates' + (filter ? '?customer_id=' + filter : '')).then(setRows).catch(e => { setRows(r => r || []); toast(e.message, true); });
+  }, [filter]);
+  useEffect(() => { load(); }, [load]);
+
+  const del = async id => {
+    if (!confirm('Delete this spot rate record?')) return;
+    await api('/api/spot-rates/' + id, { method: 'DELETE' });
+    load();
+  };
+
+  return (
+    <section>
+      <div className="toolbar">
+        <button className="btn" onClick={() => setForm('new')}>＋ Give New Spot Rate</button>
+        <select value={filter} onChange={e => setFilter(e.target.value)}>
+          <option value="">All customers</option>
+          {customers.map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
+        </select>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table>
+          <thead><tr><th>Date</th><th>Customer</th><th>From</th><th>To</th><th>Boxes</th><th>Dimensions</th><th>Exp. Wt</th><th>Rate ₹/kg</th><th>Status</th><th>AWB</th><th></th></tr></thead>
+          <tbody>
+            {rows === null && <tr><td colSpan={11} className="empty">Loading…</td></tr>}
+            {rows && rows.length === 0 && <tr><td colSpan={11} className="empty">No spot rates yet</td></tr>}
+            {rows && rows.map(r => (
+              <tr key={r.id}>
+                <td>{(r.created_at || '').slice(0, 10)}</td>
+                <td>{r.customer_code}</td>
+                <td>{[r.from_state, r.from_country].filter(Boolean).join(', ')}</td>
+                <td>{[r.to_address, r.to_country].filter(Boolean).join(', ')}</td>
+                <td>{r.box_count || '—'}</td>
+                <td>{r.dimensions || '—'}</td>
+                <td className="amt">{fmt(r.expected_weight)}</td>
+                <td className="amt"><b>₹{fmt(r.rate)}</b></td>
+                <td><span className={'tag ' + (r.status === 'Executed' ? 'mint' : r.status === 'Expired' ? 'gray' : '')}>{r.status}</span></td>
+                <td className="mono">{r.awb || '—'}</td>
+                <td>
+                  <button className="btn sm ghost" onClick={() => setForm(r)}>Edit</button>{' '}
+                  <button className="btn sm danger" onClick={() => del(r.id)}>✕</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {form && (
+        <SpotRateForm rate={form === 'new' ? null : form} customers={customers}
+          onClose={() => setForm(null)} onSaved={() => { setForm(null); load(); }} />
+      )}
+    </section>
+  );
+}
+
 // ---------- shell ----------
-const TAB_PATHS = { shipments: '/admin', customers: '/admin/customers', consignees: '/admin/consignees', settings: '/admin/settings' };
+const TAB_PATHS = { shipments: '/admin', customers: '/admin/customers', consignees: '/admin/consignees', kyc: '/admin/kyc', 'spot-rates': '/admin/spot-rates', settings: '/admin/settings' };
 
 function tabFromPath() {
   const seg = window.location.pathname.split('/')[2] || 'shipments';
@@ -572,7 +822,7 @@ function Dashboard({ userName, onLogout }) {
   const loadServices = useCallback(() => api('/api/settings/services').then(d => { setProviders(d.providers); setServices(d.services); }).catch(e => toast(e.message, true)), []);
   useEffect(() => { loadCustomers(); loadConsignees(); loadServices(); }, []);
 
-  const TABS = [['shipments', 'Shipments'], ['customers', 'Customers'], ['consignees', 'Consignees'], ['settings', 'Settings']];
+  const TABS = [['shipments', 'Shipments'], ['customers', 'Customers'], ['consignees', 'Consignees'], ['kyc', 'KYC Docs'], ['spot-rates', 'Spot Rates'], ['settings', 'Settings']];
   return (
     <>
       <header>
@@ -589,6 +839,8 @@ function Dashboard({ userName, onLogout }) {
         {tab === 'shipments' && <ShipmentsTab customers={customers} consignees={consignees} providers={providers} services={services} />}
         {tab === 'customers' && <CustomersTab customers={customers} reload={loadCustomers} />}
         {tab === 'consignees' && <ConsigneesTab consignees={consignees} customers={customers} reload={loadConsignees} />}
+        {tab === 'kyc' && <KycTab customers={customers} />}
+        {tab === 'spot-rates' && <SpotRatesTab customers={customers} />}
         {tab === 'settings' && <SettingsTab providers={providers} services={services} reload={loadServices} />}
       </main>
     </>

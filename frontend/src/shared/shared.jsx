@@ -105,6 +105,20 @@ export function Splash({ name }) {
   );
 }
 
+export const KYC_CATEGORIES = ['IEC Certificate', 'GST Certificate', 'PAN Card', 'Aadhaar Card', 'LUT', 'AD Code Letter', 'Cancelled Cheque', 'Authorization Letter', 'Import Export Documents', 'Other'];
+
+export function TabBar({ tabs, active, onChange }) {
+  return (
+    <div className="tabbar">
+      {tabs.map(t => (
+        <button key={t.k} className={active === t.k ? 'on' : ''} onClick={() => onChange(t.k)}>
+          {t.label}{t.badge ? <span className="badge">{t.badge}</span> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function StatusTag({ status }) {
   const cls = status === 'Paid' ? ' mint' : status === 'Booked' ? ' gray' : '';
   return <span className={'tag' + cls}>{status}</span>;
@@ -121,23 +135,45 @@ export function KV({ rows }) {
 }
 
 export function ShipmentDetail({ s, showCustomer }) {
+  const line = (...parts) => parts.filter(Boolean).join(', ');
   return (
-    <KV rows={[
-      showCustomer ? ['Customer', `${s.customer_code} — ${s.customer_name}`] : ['Customer', undefined],
-      ['Carrier / Service', `${s.provider || '—'}${s.service ? ' · ' + s.service : ''}`],
-      ['Date / Status', `${s.ship_date || '—'} · ${s.status}`],
-      ['From', `${s.from_address || ''}, ${s.from_country || ''} ${s.from_pincode || ''}`],
-      ['To', <span key="to">{s.to_company}{s.to_contact ? ` (Attn: ${s.to_contact})` : ''}<br />{s.to_address}, {s.to_country}<br />{s.to_phone}</span>],
-      ['Invoice', `${s.invoice_no || '—'} · ${s.invoice_date || '—'} · ${s.currency} ${fmt(s.invoice_value)}`],
-      ['Terms', `${s.incoterm || '—'} · ${s.export_type || '—'}`],
-      ['Items', s.items_desc || '—'],
-      ['Boxes', (s.boxes || []).length
-        ? <span key="bx">{s.boxes.map((b, i) => <span key={i}>{b.count} × {b.length}×{b.width}×{b.height} cm @ {b.weight} kg (÷{b.divisor})<br /></span>)}</span>
-        : '—'],
-      ['Weights', <span key="w" className="mono">Actual {fmt(s.actual_weight)} · Vol {fmt(s.volumetric_weight)} · <b>Chg {fmt(s.chargeable_weight)} kg</b></span>],
-      ['Billing', <span key="b" className="mono">₹{fmt(s.rate)}/kg → <b style={{ color: 'var(--blue)' }}>₹{fmt(s.amount)}</b></span>],
-      s.notes ? ['Notes', s.notes] : ['Notes', undefined]
-    ]} />
+    <>
+      <div className="sumstrip">
+        <div><span>Chargeable Wt</span><b>{fmt(s.chargeable_weight)} kg</b></div>
+        <div><span>Amount</span><b style={{ color: 'var(--blue)' }}>₹{fmt(s.amount)}</b></div>
+        <div><span>Status</span><StatusTag status={s.status} /></div>
+      </div>
+      <h3>Shipment</h3>
+      <KV rows={[
+        showCustomer ? ['Customer', `${s.customer_code} — ${s.customer_name}`] : ['Customer', undefined],
+        ['AWB', <span key="a" className="mono"><b>{s.awb || '—'}</b></span>],
+        ['Carrier / Service', `${s.provider || '—'}${s.service ? ' · ' + s.service : ''}`],
+        ['Date', s.ship_date || '—']
+      ]} />
+      <h3>Route</h3>
+      <KV rows={[
+        ['From', line(s.from_address, s.from_country, s.from_pincode) || '—'],
+        ['To', <span key="to"><b>{s.to_company || '—'}</b>{s.to_contact ? ` (Attn: ${s.to_contact})` : ''}<br />{line(s.to_address, s.to_country)}{s.to_phone ? <><br />{s.to_phone}</> : null}</span>]
+      ]} />
+      <h3>Invoice &amp; Terms</h3>
+      <KV rows={[
+        ['Invoice', `${s.invoice_no || '—'} · ${s.invoice_date || '—'}`],
+        ['Value', `${s.currency} ${fmt(s.invoice_value)}`],
+        ['Terms', `${s.incoterm || '—'} · ${s.export_type || '—'}`],
+        ['Items', s.items_desc || '—']
+      ]} />
+      <h3>Boxes &amp; Weights</h3>
+      <KV rows={[
+        ['Boxes', (s.boxes || []).length
+          ? <span key="bx">{s.boxes.map((b, i) => <span key={i}>{b.count} × {b.length || 0}×{b.width || 0}×{b.height || 0} cm @ {b.weight} kg (÷{b.divisor})<br /></span>)}</span>
+          : '—'],
+        ['Actual', fmt(s.actual_weight) + ' kg'],
+        ['Volumetric', fmt(s.volumetric_weight) + ' kg'],
+        ['Chargeable', <b key="c" className="mono">{fmt(s.chargeable_weight)} kg</b>],
+        ['Rate', <span key="r" className="mono">₹{fmt(s.rate)}/kg</span>]
+      ]} />
+      {s.notes ? <><h3>Notes</h3><p style={{ fontSize: 13 }}>{s.notes}</p></> : null}
+    </>
   );
 }
 
