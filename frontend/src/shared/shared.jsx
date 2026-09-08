@@ -90,6 +90,26 @@ export function Drawer({ onClose, children }) {
   );
 }
 
+export function Spinner({ size = 28, pulse = false }) {
+  return (
+    <span className="shipzy-spin-wrap" style={{ width: size, height: size }} role="status" aria-label="Loading">
+      <span className="shipzy-spin">
+        <img src="/logo-mark.png" alt="" width={size} height={size} className={pulse ? 'shipzy-pulse' : ''}
+          style={{ display: 'block', objectFit: 'contain', width: size, height: size }} />
+      </span>
+    </span>
+  );
+}
+
+export function BootLoader() {
+  return (
+    <div className="splash">
+      <Spinner size={84} pulse />
+      <div className="ltext">Loading <span>ShipzyCart</span>…</div>
+    </div>
+  );
+}
+
 export function Splash({ name }) {
   const [fade, setFade] = useState(false);
   useEffect(() => {
@@ -98,9 +118,35 @@ export function Splash({ name }) {
   }, []);
   return (
     <div className={'splash' + (fade ? ' fade' : '')}>
-      <div className="logo">Shipzy<span>Cart</span></div>
+      <Spinner size={84} pulse />
       <div className="wel">Welcome, <b>{name}</b> 👋</div>
-      <div className="bar"><i /></div>
+    </div>
+  );
+}
+
+export function BrandBlock({ subtitle }) {
+  return (
+    <div className="brandblock">
+      <img src="/logo-mark.png" alt="ShipzyCart" />
+      <div>
+        <h1>Shipzy<span>Cart</span></h1>
+        <div className="sub">{subtitle}</div>
+      </div>
+    </div>
+  );
+}
+
+export function LoginHead({ subtitle }) {
+  return (
+    <div className="loginhead">
+      <div className="dots" />
+      <div className="row">
+        <img src="/logo-mark.png" alt="" />
+        <div>
+          <div className="t">ShipzyCart</div>
+          <div className="s">{subtitle}</div>
+        </div>
+      </div>
     </div>
   );
 }

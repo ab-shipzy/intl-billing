@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, Splash, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
+import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, Splash, BootLoader, BrandBlock, LoginHead, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
 
 const PAGES = { shipments: '/', kyc: '/kyc', rates: '/rates' };
 function pageFromPath() {
@@ -38,10 +38,9 @@ function Login({ onLoggedIn }) {
   };
   return (
     <div className="loginwrap">
-      <div className="card">
-        <h2>Shipzy<span style={{ color: 'var(--blue)' }}>Cart</span> · Customer Portal</h2>
-        <p style={{ color: '#64748b', fontSize: 13, marginBottom: 12 }}>Track your international shipment billing</p>
-        <div className="grid">
+      <div className="logincard">
+        <LoginHead subtitle="Customer Portal" />
+        <div className="body grid">
           <div><label>Customer Code</label>
             <input className="mono" value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. SZC-ACME" autoCapitalize="characters" /></div>
           <div><label>Password</label>
@@ -240,7 +239,7 @@ function Dashboard({ me, onLogout }) {
   return (
     <>
       <header>
-        <h1>Shipzy<span>Cart</span></h1>
+        <BrandBlock subtitle="Customer Portal" />
         <nav>
           {NAV.map(([k, l]) => <a key={k} href={PAGES[k]} className={page === k ? 'active' : ''}>{l}</a>)}
         </nav>
@@ -273,12 +272,7 @@ function App() {
   };
   const onLogout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} window.location.href = '/'; };
 
-  if (me === undefined) return (
-    <div className="splash">
-      <div className="logo">Shipzy<span>Cart</span></div>
-      <div className="bar"><i /></div>
-    </div>
-  );
+  if (me === undefined) return <BootLoader />;
   return (
     <>
       {me ? <Dashboard me={me} onLogout={onLogout} /> : (!splash && <Login onLoggedIn={onLoggedIn} />)}

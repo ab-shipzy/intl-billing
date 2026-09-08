@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, Splash, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
+import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, Splash, BootLoader, BrandBlock, LoginHead, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
 
 const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA', 'CPT', 'CIP'];
 const EXPORT_TYPES = ['', 'LUT', 'IGST', 'Non-commercial'];
@@ -24,9 +24,9 @@ function Login({ onLoggedIn }) {
   };
   return (
     <div className="loginwrap">
-      <div className="card">
-        <h2>Shipzy<span style={{ color: 'var(--blue)' }}>Cart</span> · Admin Login</h2>
-        <div className="grid" style={{ marginTop: 10 }}>
+      <div className="logincard">
+        <LoginHead subtitle="Intl Billing · Admin" />
+        <div className="body grid">
           <Field label="Username"><input value={u} onChange={e => setU(e.target.value)} /></Field>
           <Field label="Password"><input type="password" value={p} onChange={e => setP(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} /></Field>
           <button className="btn" onClick={submit} disabled={busy}>{busy ? 'Logging in…' : 'Login'}</button>
@@ -826,7 +826,7 @@ function Dashboard({ userName, onLogout }) {
   return (
     <>
       <header>
-        <h1>Shipzy<span>Cart</span> · Intl Billing</h1>
+        <BrandBlock subtitle="Intl Billing" />
         <nav>
           {TABS.map(([k, l]) => <a key={k} href={TAB_PATHS[k]} className={tab === k ? 'active' : ''}>{l}</a>)}
         </nav>
@@ -864,12 +864,7 @@ function App() {
   };
   const onLogout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} location.reload(); };
 
-  if (authed === undefined) return (
-    <div className="splash">
-      <div className="logo">Shipzy<span>Cart</span></div>
-      <div className="bar"><i /></div>
-    </div>
-  );
+  if (authed === undefined) return <BootLoader />;
   return (
     <>
       {authed ? <Dashboard userName={userName} onLogout={onLogout} /> : (!splash && <Login onLoggedIn={onLoggedIn} />)}
