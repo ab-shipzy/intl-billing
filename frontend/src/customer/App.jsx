@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, Splash, BootLoader, BrandBlock, LoginHead, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
+import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
 
 const PAGES = { shipments: '/', kyc: '/kyc', rates: '/rates' };
 function pageFromPath() {
@@ -259,24 +259,20 @@ function Dashboard({ me, onLogout }) {
 
 function App() {
   const [me, setMe] = useState(undefined);
-  const [splash, setSplash] = useState(null);
 
   useEffect(() => {
     api('/api/me?p=customer').then(m => setMe(m.role === 'customer' ? m : null)).catch(() => setMe(null));
   }, []);
 
   const onLoggedIn = r => {
-    setSplash(r.name || r.code);
     setMe({ role: 'customer', name: r.name, code: r.code });
-    setTimeout(() => setSplash(null), 900);
   };
   const onLogout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} window.location.href = '/'; };
 
   if (me === undefined) return <BootLoader />;
   return (
     <>
-      {me ? <Dashboard me={me} onLogout={onLogout} /> : (!splash && <Login onLoggedIn={onLoggedIn} />)}
-      {splash && <Splash name={splash} />}
+      {me ? <Dashboard me={me} onLogout={onLogout} /> : <Login onLoggedIn={onLoggedIn} />}
     </>
   );
 }

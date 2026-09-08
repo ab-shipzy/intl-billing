@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, Splash, BootLoader, BrandBlock, LoginHead, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
+import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
 
 const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA', 'CPT', 'CIP'];
 const EXPORT_TYPES = ['', 'LUT', 'IGST', 'Non-commercial'];
@@ -850,7 +850,6 @@ function Dashboard({ userName, onLogout }) {
 function App() {
   const [authed, setAuthed] = useState(undefined);
   const [userName, setUserName] = useState('Admin');
-  const [splash, setSplash] = useState(null);
 
   useEffect(() => {
     api('/api/me?p=admin').then(m => setAuthed(m.role === 'admin')).catch(() => setAuthed(false));
@@ -858,17 +857,14 @@ function App() {
 
   const onLoggedIn = name => {
     setUserName(name);
-    setSplash(name);
     setAuthed(true);
-    setTimeout(() => setSplash(null), 900);
   };
   const onLogout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} location.reload(); };
 
   if (authed === undefined) return <BootLoader />;
   return (
     <>
-      {authed ? <Dashboard userName={userName} onLogout={onLogout} /> : (!splash && <Login onLoggedIn={onLoggedIn} />)}
-      {splash && <Splash name={splash} />}
+      {authed ? <Dashboard userName={userName} onLogout={onLogout} /> : <Login onLoggedIn={onLoggedIn} />}
     </>
   );
 }
