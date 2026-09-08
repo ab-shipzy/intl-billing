@@ -240,7 +240,7 @@ function RatesPage() {
 // ---------- shell ----------
 function Dashboard({ me, onLogout }) {
   const page = pageFromPath();
-  const NAV = [['shipments', 'Shipments', '📦'], ['kyc', 'KYC Docs', '🪪'], ['rates', 'Spot Rates', '⚡']];
+  const NAV = [['shipments', 'Shipments', '📦', 'box'], ['kyc', 'KYC Docs', '🪪', 'idcard'], ['rates', 'Spot Rates', '⚡', 'zap']];
   const spotlightSources = async () => {
     const items = NAV.map(([k, l, g]) => ({ group: 'Pages', glyph: g, label: l, action: () => { window.location.href = PAGES[k]; } }));
     try {
@@ -264,14 +264,16 @@ function Dashboard({ me, onLogout }) {
   const label = (NAV.find(t => t[0] === page) || NAV[0])[1];
   return (
     <div className="layout">
-      <Sidebar subtitle="Customer Portal" activeKey={page} footName={me.name} footRole={me.code} onLogout={onLogout}
-        items={NAV.map(([k, l, g]) => ({ key: k, href: PAGES[k], label: l, glyph: g }))} />
+      <Sidebar subtitle="Customer Portal" activeKey={page}
+        items={NAV.map(([k, l, g, ic]) => ({ key: k, href: PAGES[k], label: l, icon: ic }))} />
       <div className="content">
         <div className="topbar">
           <div className="pagetitle">{label}</div>
           <Spotlight getSources={spotlightSources} />
           <WeatherChip />
           <HeaderClock />
+          <Avatar name={me.name} />
+          <button className="out" onClick={onLogout}>Logout</button>
         </div>
         <main className="shipzy-page-in">
           {page === 'shipments' && <ShipmentsPage />}

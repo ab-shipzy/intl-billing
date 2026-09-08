@@ -828,8 +828,8 @@ function Dashboard({ userName, onLogout }) {
   useEffect(() => { loadCustomers(); loadConsignees(); loadServices(); }, []);
 
   const TABS = [
-    ['shipments', 'Shipments', '📦'], ['customers', 'Customers', '👥'], ['consignees', 'Consignees', '🏢'],
-    ['kyc', 'KYC Docs', '🪪'], ['spot-rates', 'Spot Rates', '⚡'], ['settings', 'Settings', '⚙️']
+    ['shipments', 'Shipments', '📦', 'truck'], ['customers', 'Customers', '👥', 'users'], ['consignees', 'Consignees', '🏢', 'building'],
+    ['kyc', 'KYC Docs', '🪪', 'idcard'], ['spot-rates', 'Spot Rates', '⚡', 'zap'], ['settings', 'Settings', '⚙️', 'gear']
   ];
   const spotlightSources = async () => {
     const items = TABS.map(([k, l, g]) => ({ group: 'Pages', glyph: g, label: l, action: () => { window.location.href = TAB_PATHS[k]; } }));
@@ -859,14 +859,16 @@ function Dashboard({ userName, onLogout }) {
   const label = (TABS.find(t => t[0] === tab) || TABS[0])[1];
   return (
     <div className="layout">
-      <Sidebar subtitle="Intl Billing" activeKey={tab} footName={userName} footRole="Admin / Ops" onLogout={onLogout}
-        items={TABS.map(([k, l, g]) => ({ key: k, href: TAB_PATHS[k], label: l, glyph: g }))} />
+      <Sidebar subtitle="Intl Billing" activeKey={tab}
+        items={TABS.map(([k, l, g, ic]) => ({ key: k, href: TAB_PATHS[k], label: l, icon: ic }))} />
       <div className="content">
         <div className="topbar">
           <div className="pagetitle">{label}</div>
           <Spotlight getSources={spotlightSources} />
           <WeatherChip />
           <HeaderClock />
+          <Avatar name={userName} />
+          <button className="out" onClick={onLogout}>Logout</button>
         </div>
         <main className="shipzy-page-in">
         {tab === 'shipments' && <ShipmentsTab customers={customers} consignees={consignees} providers={providers} services={services} />}
