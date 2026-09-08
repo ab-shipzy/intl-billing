@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, SearchInput, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
+import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, SearchInput, WeatherChip, Avatar, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
 
 const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA', 'CPT', 'CIP'];
 const EXPORT_TYPES = ['', 'LUT', 'IGST', 'Non-commercial'];
@@ -832,7 +832,9 @@ function Dashboard({ userName, onLogout }) {
           {TABS.map(([k, l]) => <a key={k} href={TAB_PATHS[k]} className={tab === k ? 'active' : ''}>{l}</a>)}
         </nav>
         <div className="right">
+          <WeatherChip />
           <span className="mono">{userName}</span>
+          <Avatar name={userName} />
           <button className="btn ghost dark" onClick={onLogout}>Logout</button>
         </div>
       </header>

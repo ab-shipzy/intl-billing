@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
+import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, WeatherChip, Avatar, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
 
 const PAGES = { shipments: '/', kyc: '/kyc', rates: '/rates' };
 function pageFromPath() {
@@ -245,7 +245,9 @@ function Dashboard({ me, onLogout }) {
           {NAV.map(([k, l]) => <a key={k} href={PAGES[k]} className={page === k ? 'active' : ''}>{l}</a>)}
         </nav>
         <div className="right">
+          <WeatherChip />
           <span className="mono">{me.code} · {me.name}</span>
+          <Avatar name={me.name} />
           <button className="btn ghost dark" onClick={onLogout}>Logout</button>
         </div>
       </header>

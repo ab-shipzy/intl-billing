@@ -193,6 +193,111 @@ export function TabBar({ tabs, active, onChange }) {
   );
 }
 
+
+// ===== Weather mood (ported from ShipzyCart FTL) =====
+export const WEATHER_THEMES = {
+  hot: { gradient: 'linear-gradient(135deg, #fff5e6 0%, #ffe5c4 50%, #ffd194 100%)', label: 'Hot', emoji: '🔥', particles: 'heat' },
+  warm: { gradient: 'linear-gradient(135deg, #fef9e7 0%, #fff5d6 50%, #ffe9a8 100%)', label: 'Warm Sun', emoji: '☀️', particles: 'sun' },
+  mild: { gradient: 'linear-gradient(135deg, #ecfdf5 0%, #e0f2fe 50%, #e6f1ff 100%)', label: 'Mild', emoji: '🌤️', particles: 'breeze' },
+  cold: { gradient: 'linear-gradient(135deg, #e0f2fe 0%, #cce4ff 50%, #b5d2f5 100%)', label: 'Cold', emoji: '❄️', particles: 'frost' },
+  rainy: { gradient: 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 50%, #94a3b8 100%)', label: 'Rainy', emoji: '🌧️', particles: 'rain' },
+  stormy: { gradient: 'linear-gradient(135deg, #cbd5e1 0%, #94a3b8 50%, #64748b 100%)', label: 'Stormy', emoji: '⛈️', particles: 'rain' },
+  snowy: { gradient: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)', label: 'Snow', emoji: '❄️', particles: 'snow' },
+  fog: { gradient: 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 50%, #9ca3af 100%)', label: 'Foggy', emoji: '🌫️', particles: 'fog' },
+  'clear-night': { gradient: 'linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%)', label: 'Clear Night', emoji: '🌙', particles: 'stars' }
+};
+
+export function classifyWeather(temp, code, isDay) {
+  if (code >= 95) return 'stormy';
+  if (code >= 71 && code <= 86) return 'snowy';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rainy';
+  if (code === 45 || code === 48) return 'fog';
+  if (temp >= 35) return 'hot';
+  if (temp >= 28) return isDay === 0 ? 'clear-night' : 'warm';
+  if (temp >= 18) return isDay === 0 ? 'clear-night' : 'mild';
+  return 'cold';
+}
+
+const WKEY = 'szc_weather';
+function readW() { try { return JSON.parse(localStorage.getItem(WKEY) || 'null') || {}; } catch (e) { return {}; } }
+function writeW(p) { try { localStorage.setItem(WKEY, JSON.stringify(p)); } catch (e) {} }
+
+export function useWeatherMood() {
+  const [st, setSt] = useState(readW);
+  const persist = next => { setSt(next); writeW(next); };
+
+  const fetchWeather = async (lat, lng) => {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code,is_day&timezone=auto`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('weather fetch failed');
+    const c = (await res.json()).current || {};
+    return { temp: Number(c.temperature_2m ?? 0), code: Number(c.weather_code ?? 0), isDay: Number(c.is_day ?? 1), fetchedAt: Date.now() };
+  };
+
+  useEffect(() => {
+    if (!st.enabled || !st.coords) return;
+    if (st.weather && Date.now() - st.weather.fetchedAt < 30 * 60e3) return;
+    fetchWeather(st.coords.lat, st.coords.lng).then(weather => persist({ ...readW(), weather })).catch(() => {});
+  }, []);
+
+  const toggle = () => {
+    if (st.enabled) { persist({ ...st, enabled: false }); return; }
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      try {
+        const weather = await fetchWeather(coords.lat, coords.lng);
+        persist({ enabled: true, coords, weather });
+      } catch (e) { persist({ enabled: true, coords }); }
+    }, () => {});
+  };
+
+  const mood = st.enabled && st.weather ? classifyWeather(st.weather.temp, st.weather.code, st.weather.isDay) : null;
+  return { mood, theme: mood ? WEATHER_THEMES[mood] : null, temp: st.weather ? st.weather.temp : null, enabled: !!st.enabled, toggle };
+}
+
+export function WeatherMoodBackground({ mood }) {
+  const reduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!mood || !WEATHER_THEMES[mood]) return null;
+  const theme = WEATHER_THEMES[mood];
+  const particles = () => {
+    if (reduced) return null;
+    switch (theme.particles) {
+      case 'rain': return <div className="weather-rain">{Array.from({ length: 60 }).map((_, i) => <span key={i} style={{ left: `${(i * 1.7) % 100}%`, animationDelay: `${(i * 0.13) % 2}s`, animationDuration: `${0.7 + (i % 5) * 0.15}s` }} />)}</div>;
+      case 'snow': return <div className="weather-snow">{Array.from({ length: 40 }).map((_, i) => <span key={i} style={{ left: `${(i * 2.5) % 100}%`, animationDelay: `${(i * 0.4) % 8}s`, animationDuration: `${6 + (i % 4) * 1.5}s`, fontSize: `${10 + (i % 3) * 4}px` }}>❄</span>)}</div>;
+      case 'stars': return <div className="weather-stars">{Array.from({ length: 50 }).map((_, i) => <span key={i} style={{ left: `${(i * 2 + i % 7) % 100}%`, top: `${(i * 5 + (i % 11) * 3) % 90}%`, animationDelay: `${(i * 0.2) % 4}s` }} />)}</div>;
+      case 'heat': return <div className="weather-heat">{Array.from({ length: 8 }).map((_, i) => <span key={i} style={{ left: `${10 + i * 11}%`, animationDelay: `${i * 0.4}s`, animationDuration: `${4 + i % 3}s` }} />)}</div>;
+      case 'sun': return <div className="weather-sun" />;
+      case 'frost': return <div className="weather-frost">{Array.from({ length: 18 }).map((_, i) => <span key={i} style={{ left: `${(i * 5.5) % 100}%`, top: `${(i * 7 + (i % 5) * 9) % 90}%`, animationDelay: `${(i * 0.3) % 4}s` }} />)}</div>;
+      case 'breeze': return <div className="weather-breeze">{Array.from({ length: 6 }).map((_, i) => <span key={i} style={{ top: `${12 + i * 14}%`, animationDelay: `${i * 1.1}s`, animationDuration: `${7 + i % 3}s` }} />)}</div>;
+      case 'fog': return <div className="weather-fog" />;
+      default: return null;
+    }
+  };
+  return (
+    <div className="weather-mood-bg" aria-hidden="true">
+      <div className="weather-gradient" style={{ background: theme.gradient }} />
+      {particles()}
+    </div>
+  );
+}
+
+export function WeatherChip() {
+  const w = useWeatherMood();
+  return (
+    <>
+      <button className="weatherchip" onClick={w.toggle} title={w.enabled ? 'Weather mood on — click to turn off' : 'Turn on weather mood'}>
+        {w.enabled && w.theme ? `${w.theme.emoji} ${w.temp != null ? Math.round(w.temp) + '°' : w.theme.label}` : '🌤️ Mood'}
+      </button>
+      {w.enabled && <WeatherMoodBackground mood={w.mood} />}
+    </>
+  );
+}
+
+export function Avatar({ name }) {
+  return <div className="avatar" title={name}>{(name || '?').trim().charAt(0).toUpperCase()}</div>;
+}
+
 export function StatusTag({ status }) {
   const cls = status === 'Paid' ? ' mint' : status === 'Booked' ? ' gray' : '';
   return <span className={'tag' + cls}>{status}</span>;
