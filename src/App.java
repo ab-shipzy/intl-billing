@@ -517,7 +517,7 @@ public class App {
 
     static void serveStatic(HttpExchange ex, String p) throws Exception {
         if (p.equals("/")) p = "/index.html";
-        if (p.equals("/admin")) p = "/admin.html";
+        if (p.equals("/admin") || p.startsWith("/admin/")) p = "/admin.html";
         File root = new File("public").getCanonicalFile();
         File f = new File(root, p).getCanonicalFile();
         if (!f.getPath().startsWith(root.getPath()) || !f.isFile()) { err(ex, 404, "not found"); return; }

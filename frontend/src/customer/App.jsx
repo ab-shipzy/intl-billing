@@ -119,7 +119,12 @@ function App() {
   };
   const onLogout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} location.reload(); };
 
-  if (me === undefined) return <div className="center">Loading…</div>;
+  if (me === undefined) return (
+    <div className="splash">
+      <div className="logo">Shipzy<span>Cart</span></div>
+      <div className="bar"><i /></div>
+    </div>
+  );
   return (
     <>
       {me ? <Dashboard me={me} onLogout={onLogout} /> : (!splash && <Login onLoggedIn={onLoggedIn} />)}

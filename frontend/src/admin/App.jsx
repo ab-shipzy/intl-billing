@@ -552,9 +552,16 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
 }
 
 // ---------- shell ----------
+const TAB_PATHS = { shipments: '/admin', customers: '/admin/customers', consignees: '/admin/consignees', settings: '/admin/settings' };
+
+function tabFromPath() {
+  const seg = window.location.pathname.split('/')[2] || 'shipments';
+  return TAB_PATHS[seg] ? seg : 'shipments';
+}
+
 function Dashboard({ userName, onLogout }) {
   const toast = useToast();
-  const [tab, setTab] = useState('shipments');
+  const tab = tabFromPath();
   const [customers, setCustomers] = useState([]);
   const [consignees, setConsignees] = useState([]);
   const [providers, setProviders] = useState([]);
@@ -571,7 +578,7 @@ function Dashboard({ userName, onLogout }) {
       <header>
         <h1>Shipzy<span>Cart</span> · Intl Billing</h1>
         <nav>
-          {TABS.map(([k, l]) => <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
+          {TABS.map(([k, l]) => <a key={k} href={TAB_PATHS[k]} className={tab === k ? 'active' : ''}>{l}</a>)}
         </nav>
         <div className="right">
           <span className="mono">{userName}</span>
@@ -605,7 +612,12 @@ function App() {
   };
   const onLogout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} location.reload(); };
 
-  if (authed === undefined) return <div className="center">Loading…</div>;
+  if (authed === undefined) return (
+    <div className="splash">
+      <div className="logo">Shipzy<span>Cart</span></div>
+      <div className="bar"><i /></div>
+    </div>
+  );
   return (
     <>
       {authed ? <Dashboard userName={userName} onLogout={onLogout} /> : (!splash && <Login onLoggedIn={onLoggedIn} />)}
