@@ -17,7 +17,10 @@ import java.sql.Statement;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.json.JSONArray;
@@ -37,6 +40,19 @@ public class App {
     static Connection db;
     static final SecureRandom RNG = new SecureRandom();
 
+    // ---- live updates (SSE) ----
+    static class Sse { long cid; HttpExchange ex; OutputStream os; }
+    static final List<Sse> SSE_CLIENTS = new CopyOnWriteArrayList<>();
+
+    static void notifyCustomer(Long cid) {
+        if (cid == null) return;
+        for (Sse c : SSE_CLIENTS) {
+            if (c.cid != cid) continue;
+            try { c.os.write("event: shipments\ndata: {}\n\n".getBytes(StandardCharsets.UTF_8)); c.os.flush(); }
+            catch (Exception e) { SSE_CLIENTS.remove(c); try { c.ex.close(); } catch (Exception ignored) {} }
+        }
+    }
+
     static String env(String k, String d) {
         String v = System.getenv(k);
         return (v == null || v.isEmpty()) ? d : v;
@@ -55,6 +71,13 @@ public class App {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/", App::route);
         server.setExecutor(Executors.newFixedThreadPool(8));
+        Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "sse-ping"); t.setDaemon(true); return t; })
+            .scheduleAtFixedRate(() -> {
+                for (Sse c : SSE_CLIENTS) {
+                    try { c.os.write(": ping\n\n".getBytes(StandardCharsets.UTF_8)); c.os.flush(); }
+                    catch (Exception e) { SSE_CLIENTS.remove(c); try { c.ex.close(); } catch (Exception ignored) {} }
+                }
+            }, 25, 25, TimeUnit.SECONDS);
         server.start();
         System.out.println("ShipzyCart Intl Billing (Java) on :" + port + " | data dir: " + DATA_DIR);
     }
@@ -221,6 +244,7 @@ public class App {
             if (p.equals("/api/me") && m.equals("GET")) { me(ex); return; }
 
             // customer portal
+            if (p.equals("/api/my/events") && m.equals("GET")) { myEvents(ex); return; }
             if (p.equals("/api/my/shipments") && m.equals("GET")) { myShipments(ex); return; }
             if ((mt = P_MY_SHIP_ID.matcher(p)).matches() && m.equals("GET")) { myShipmentDetail(ex, Long.parseLong(mt.group(1))); return; }
             if ((mt = P_DOC_DL.matcher(p)).matches() && m.equals("GET")) { docDownload(ex, Long.parseLong(mt.group(1))); return; }
@@ -377,6 +401,11 @@ public class App {
         JSONObject b = jsonBody(ex);
         Long custId = lng(b, "customer_id");
         if (custId == null) { err(ex, 400, "customer required"); return; }
+        Long oldCust = null;
+        if (id != null) {
+            JSONObject prev = q1("SELECT customer_id FROM shipments WHERE id=?", id);
+            if (prev != null) oldCust = prev.getLong("customer_id");
+        }
         JSONArray boxes = b.optJSONArray("boxes");
         double[] w = computeWeights(boxes);
         double rate = num(b, "rate");
@@ -408,6 +437,8 @@ public class App {
             exec("INSERT INTO boxes (shipment_id, count, length, width, height, weight, divisor) VALUES (?,?,?,?,?,?,?)",
                 sid, (long) n, num(x, "length"), num(x, "width"), num(x, "height"), num(x, "weight"), (long) d);
         }
+        notifyCustomer(custId);
+        if (oldCust != null && !oldCust.equals(custId)) notifyCustomer(oldCust);
         send(ex, 200, new JSONObject().put("ok", true).put("id", sid).toString());
     }
 
@@ -420,12 +451,14 @@ public class App {
     }
 
     static void shipDelete(HttpExchange ex, long id) throws Exception {
+        JSONObject prev = q1("SELECT customer_id FROM shipments WHERE id=?", id);
         JSONArray docs = q("SELECT stored_name FROM documents WHERE shipment_id=?", id);
         for (int i = 0; i < docs.length(); i++)
             new File(UPLOAD_DIR, docs.getJSONObject(i).getString("stored_name")).delete();
         exec("DELETE FROM documents WHERE shipment_id=?", id);
         exec("DELETE FROM boxes WHERE shipment_id=?", id);
         exec("DELETE FROM shipments WHERE id=?", id);
+        if (prev != null) notifyCustomer(prev.getLong("customer_id"));
         ok(ex);
     }
 
@@ -489,6 +522,23 @@ public class App {
     }
 
     // ---------- customer portal ----------
+    static void myEvents(HttpExchange ex) throws Exception {
+        JSONObject p = authCust(ex);
+        if (p == null) { err(ex, 401, "unauthorized"); return; }
+        ex.getResponseHeaders().set("Content-Type", "text/event-stream");
+        ex.getResponseHeaders().set("Cache-Control", "no-cache");
+        ex.sendResponseHeaders(200, 0);
+        OutputStream os = ex.getResponseBody();
+        os.write("retry: 3000\n\n".getBytes(StandardCharsets.UTF_8));
+        os.flush();
+        Sse c = new Sse();
+        c.cid = p.getLong("cid");
+        c.ex = ex;
+        c.os = os;
+        SSE_CLIENTS.add(c);
+        // intentionally left open — heartbeat/notify write to it; do NOT close here
+    }
+
     static void myShipments(HttpExchange ex) throws Exception {
         JSONObject p = authCust(ex);
         if (p == null) { err(ex, 401, "unauthorized"); return; }

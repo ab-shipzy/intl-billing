@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { api, AuthError, fmt, ToastProvider, useToast, Splash, StatusTag, ShipmentDetail, DocList, Drawer } from '../shared/shared.jsx';
 
 function Login({ onLoggedIn }) {
@@ -37,10 +37,22 @@ function Dashboard({ me, onLogout }) {
   const toast = useToast();
   const [rows, setRows] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [live, setLive] = useState(false);
 
-  useEffect(() => {
-    api('/api/my/shipments').then(setRows).catch(e => { setRows([]); toast(e.message, true); });
+  const load = useCallback(() => {
+    api('/api/my/shipments').then(setRows).catch(e => { setRows(r => r || []); toast(e.message, true); });
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // live updates: refresh instantly when the backend saves a shipment on this customer's code
+  useEffect(() => {
+    const es = new EventSource('/api/my/events');
+    es.addEventListener('shipments', load);
+    es.onopen = () => setLive(true);
+    es.onerror = () => setLive(false);
+    return () => es.close();
+  }, [load]);
 
   const open = async id => {
     try { setDetail(await api('/api/my/shipments/' + id)); }
@@ -55,6 +67,7 @@ function Dashboard({ me, onLogout }) {
       <header>
         <h1>Shipzy<span>Cart</span></h1>
         <div className="right">
+          {live && <span className="tag mint">● Live</span>}
           <span className="mono">{me.code} · {me.name}</span>
           <button className="btn ghost dark" onClick={onLogout}>Logout</button>
         </div>
