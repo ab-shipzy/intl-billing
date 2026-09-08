@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, WeatherChip, Avatar, Sidebar, HeaderClock, Spotlight, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
+import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, WeatherChip, Avatar, Sidebar, HeaderClock, Spotlight, SERVICE_CATEGORIES, catLabel, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
 
 const PAGES = { shipments: '/', kyc: '/kyc', rates: '/rates' };
 function pageFromPath() {
@@ -40,7 +40,7 @@ function Login({ onLoggedIn }) {
     <div className="loginpage">
       <LoginClock />
       <div className="logincard">
-        <LoginHead subtitle="Customer Portal" />
+        <LoginHead subtitle="Billing Platform" />
         <div className="body grid">
           <div><label>Customer Code</label>
             <input className="mono" value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. SZC-ACME" autoCapitalize="characters" /></div>
@@ -59,6 +59,7 @@ function ShipmentsPage() {
   const [rows, setRows] = useState(null);
   const [detail, setDetail] = useState(null);
   const [drawerTab, setDrawerTab] = useState('details');
+  const [catFilter, setCatFilter] = useState('all');
 
   const load = useCallback(() => {
     api('/api/my/shipments').then(setRows).catch(e => { setRows(r => r || []); toast(e.message, true); });
@@ -75,27 +76,31 @@ function ShipmentsPage() {
     catch (e) { toast(e.message, true); }
   };
 
-  const totW = (rows || []).reduce((a, s) => a + (s.chargeable_weight || 0), 0);
-  const totA = (rows || []).reduce((a, s) => a + (s.amount || 0), 0);
+  const shown = (rows || []).filter(s => catFilter === 'all' || (s.service_category || 'International') === catFilter);
+  const totW = shown.reduce((a, s) => a + (s.chargeable_weight || 0), 0);
+  const totA = shown.reduce((a, s) => a + (s.amount || 0), 0);
 
   return (
     <>
+      <TabBar active={catFilter} onChange={setCatFilter}
+        tabs={[{ k: 'all', label: 'All Services' }, ...SERVICE_CATEGORIES.map(x => ({ k: x.key, label: x.label, badge: (rows || []).filter(s => (s.service_category || 'International') === x.key).length || null }))]} />
       <div className="stats">
-        <div className="stat"><div className="v">{rows ? rows.length : '…'}</div><div className="l">Shipments</div></div>
+        <div className="stat"><div className="v">{rows ? shown.length : '…'}</div><div className="l">Shipments</div></div>
         <div className="stat"><div className="v">{fmt(totW)}</div><div className="l">Total Chg. Wt (kg)</div></div>
         <div className="stat"><div className="v">₹{fmt(totA)}</div><div className="l">Total Billed</div></div>
         <div className="stat"><div className="v" style={{ color: live ? '#0b7d6d' : '#94a3b8', fontSize: 14 }}>{live ? '● Live' : '○ Offline'}</div><div className="l">Updates</div></div>
       </div>
       <div className="card" style={{ padding: 0, overflow: 'auto' }}>
         <table>
-          <thead><tr><th>Date</th><th>AWB</th><th>Carrier</th><th>From</th><th>To</th><th>Boxes</th><th>Weight (kg)</th><th>Rate</th><th>Amount ₹</th><th>Status</th></tr></thead>
+          <thead><tr><th>Date</th><th>AWB / Ref</th><th>Service</th><th>Carrier</th><th>From</th><th>To</th><th>Boxes</th><th>Weight (kg)</th><th>Rate</th><th>Amount ₹</th><th>Status</th></tr></thead>
           <tbody>
-            {rows === null && <tr><td colSpan={10} className="empty">Loading…</td></tr>}
-            {rows && rows.length === 0 && <tr><td colSpan={10} className="empty">No shipments yet</td></tr>}
-            {rows && rows.map(s => (
+            {rows === null && <tr><td colSpan={11} className="empty">Loading…</td></tr>}
+            {rows && shown.length === 0 && <tr><td colSpan={11} className="empty">No shipments yet</td></tr>}
+            {rows && shown.map(s => (
               <tr className="row" key={s.id} onClick={() => open(s.id)}>
                 <td>{s.ship_date}</td>
                 <td className="mono"><b>{s.awb}</b></td>
+                <td><span className="tag">{catLabel(s.service_category)}{s.service_subtype ? ' · ' + s.service_subtype : ''}</span></td>
                 <td>{s.provider}</td>
                 <td>{s.from_country}{s.from_pincode ? ' · ' + s.from_pincode : ''}</td>
                 <td>{s.to_company}{s.to_country ? ' · ' + s.to_country : ''}</td>

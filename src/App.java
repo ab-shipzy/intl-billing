@@ -101,6 +101,15 @@ public class App {
             try (Statement st = db.createStatement()) {
                 for (String s : ddl) st.execute(s);
             }
+            // additive migrations - ignore "duplicate column" on existing DBs
+            String[] alters = {
+                "ALTER TABLE shipments ADD COLUMN service_category TEXT DEFAULT 'International'",
+                "ALTER TABLE shipments ADD COLUMN service_subtype TEXT DEFAULT ''",
+                "ALTER TABLE providers ADD COLUMN category TEXT DEFAULT 'International'"
+            };
+            for (String a : alters) {
+                try (Statement st = db.createStatement()) { st.execute(a); } catch (Exception ignored) {}
+            }
         }
         JSONArray c = q("SELECT COUNT(*) c FROM providers");
         if (c.getJSONObject(0).getLong("c") == 0) {
@@ -294,7 +303,7 @@ public class App {
                 }
                 if (p.equals("/api/settings/providers") && m.equals("POST")) {
                     JSONObject b = jsonBody(ex);
-                    try { long id = exec("INSERT INTO providers (name) VALUES (?)", str(b, "name")); send(ex, 200, new JSONObject().put("ok", true).put("id", id).toString()); }
+                    try { long id = exec("INSERT INTO providers (name, category) VALUES (?,?)", str(b, "name"), str(b, "category", "International")); send(ex, 200, new JSONObject().put("ok", true).put("id", id).toString()); }
                     catch (Exception e) { err(ex, 400, "exists"); }
                     return;
                 }
@@ -448,16 +457,17 @@ public class App {
             str(b, "to_company"), str(b, "to_contact"), str(b, "to_address"), str(b, "to_country"), str(b, "to_phone"),
             str(b, "provider"), str(b, "service"), str(b, "awb"), str(b, "ship_date"), str(b, "incoterm"), str(b, "export_type"),
             str(b, "invoice_no"), str(b, "invoice_date"), num(b, "invoice_value"), str(b, "currency", "USD"), str(b, "items_desc"),
-            w[0], w[1], w[2], (long) w[3], rate, amount, str(b, "status", "Booked"), str(b, "notes")
+            w[0], w[1], w[2], (long) w[3], rate, amount, str(b, "status", "Booked"), str(b, "notes"),
+            str(b, "service_category", "International"), str(b, "service_subtype")
         };
         long sid;
         if (id == null) {
-            sid = exec("INSERT INTO shipments (customer_id, from_address, from_country, from_pincode, consignee_id, to_company, to_contact, to_address, to_country, to_phone, provider, service, awb, ship_date, incoterm, export_type, invoice_no, invoice_date, invoice_value, currency, items_desc, actual_weight, volumetric_weight, chargeable_weight, box_count, rate, amount, status, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", vals);
+            sid = exec("INSERT INTO shipments (customer_id, from_address, from_country, from_pincode, consignee_id, to_company, to_contact, to_address, to_country, to_phone, provider, service, awb, ship_date, incoterm, export_type, invoice_no, invoice_date, invoice_value, currency, items_desc, actual_weight, volumetric_weight, chargeable_weight, box_count, rate, amount, status, notes, service_category, service_subtype) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", vals);
         } else {
             Object[] upd = new Object[vals.length + 1];
             System.arraycopy(vals, 0, upd, 0, vals.length);
             upd[vals.length] = id;
-            exec("UPDATE shipments SET customer_id=?, from_address=?, from_country=?, from_pincode=?, consignee_id=?, to_company=?, to_contact=?, to_address=?, to_country=?, to_phone=?, provider=?, service=?, awb=?, ship_date=?, incoterm=?, export_type=?, invoice_no=?, invoice_date=?, invoice_value=?, currency=?, items_desc=?, actual_weight=?, volumetric_weight=?, chargeable_weight=?, box_count=?, rate=?, amount=?, status=?, notes=? WHERE id=?", upd);
+            exec("UPDATE shipments SET customer_id=?, from_address=?, from_country=?, from_pincode=?, consignee_id=?, to_company=?, to_contact=?, to_address=?, to_country=?, to_phone=?, provider=?, service=?, awb=?, ship_date=?, incoterm=?, export_type=?, invoice_no=?, invoice_date=?, invoice_value=?, currency=?, items_desc=?, actual_weight=?, volumetric_weight=?, chargeable_weight=?, box_count=?, rate=?, amount=?, status=?, notes=?, service_category=?, service_subtype=? WHERE id=?", upd);
             exec("DELETE FROM boxes WHERE shipment_id=?", id);
             sid = id;
         }
@@ -705,7 +715,7 @@ public class App {
     static void myShipments(HttpExchange ex) throws Exception {
         JSONObject p = authCust(ex);
         if (p == null) { err(ex, 401, "unauthorized"); return; }
-        send(ex, 200, q("SELECT id, awb, provider, service, ship_date, from_pincode, from_country, to_company, to_country, box_count, chargeable_weight, rate, amount, status FROM shipments WHERE customer_id=? ORDER BY ship_date DESC, id DESC", p.getLong("cid")).toString());
+        send(ex, 200, q("SELECT id, awb, provider, service, service_category, service_subtype, ship_date, from_pincode, from_country, to_company, to_country, box_count, chargeable_weight, rate, amount, status FROM shipments WHERE customer_id=? ORDER BY ship_date DESC, id DESC", p.getLong("cid")).toString());
     }
 
     static void myShipmentDetail(HttpExchange ex, long id) throws Exception {

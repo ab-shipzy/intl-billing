@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, SearchInput, WeatherChip, Avatar, Sidebar, HeaderClock, Spotlight, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
+import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, SearchInput, WeatherChip, Avatar, Sidebar, HeaderClock, Spotlight, SERVICE_CATEGORIES, DOMESTIC_SUBTYPES, catLabel, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
 
 const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA', 'CPT', 'CIP'];
 const EXPORT_TYPES = ['', 'LUT', 'IGST', 'Non-commercial'];
@@ -26,7 +26,7 @@ function Login({ onLoggedIn }) {
     <div className="loginpage">
       <LoginClock />
       <div className="logincard">
-        <LoginHead subtitle="Intl Billing · Admin" />
+        <LoginHead subtitle="Billing Platform · Admin" />
         <div className="body grid">
           <Field label="Username"><input value={u} onChange={e => setU(e.target.value)} /></Field>
           <Field label="Password"><input type="password" value={p} onChange={e => setP(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} /></Field>
@@ -178,11 +178,12 @@ function ConsigneesTab({ consignees, customers, reload }) {
 function SettingsTab({ providers, services, reload }) {
   const toast = useToast();
   const [newProv, setNewProv] = useState('');
+  const [newProvCat, setNewProvCat] = useState('International');
   const [svcInputs, setSvcInputs] = useState({});
   const addProv = async () => {
     if (!newProv.trim()) return;
-    try { await api('/api/settings/providers', { method: 'POST', body: { name: newProv.trim() } }); setNewProv(''); reload(); }
-    catch (e) { toast('Provider already exists', true); }
+    try { await api('/api/settings/providers', { method: 'POST', body: { name: newProv.trim(), category: newProvCat } }); setNewProv(''); reload(); }
+    catch (e) { toast('Vendor already exists', true); }
   };
   const delProv = async id => {
     if (!confirm('Delete provider and its services?')) return;
@@ -198,12 +199,21 @@ function SettingsTab({ providers, services, reload }) {
   return (
     <section>
       <div className="card">
-        <h2>Service Providers &amp; Services</h2>
+        <h2>Vendors &amp; Services</h2>
         <div className="toolbar">
-          <input placeholder="New provider (e.g. FedEx)" value={newProv} onChange={e => setNewProv(e.target.value)} onKeyDown={e => e.key === 'Enter' && addProv()} />
-          <button className="btn sm" onClick={addProv}>Add Provider</button>
+          <input placeholder="New vendor (e.g. FedEx, Delhivery)" value={newProv} onChange={e => setNewProv(e.target.value)} onKeyDown={e => e.key === 'Enter' && addProv()} />
+          <select value={newProvCat} onChange={e => setNewProvCat(e.target.value)}>
+            {SERVICE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+          <button className="btn sm" onClick={addProv}>Add Vendor</button>
         </div>
-        {providers.map(p => (
+        {SERVICE_CATEGORIES.map(cat => {
+          const vendors = providers.filter(p => (p.category || 'International') === cat.key);
+          return (
+            <div key={cat.key} style={{ marginBottom: 18 }}>
+              <h3>{cat.glyph} {cat.label} <span className="tag gray" style={{ marginLeft: 6 }}>{vendors.length} vendor{vendors.length === 1 ? '' : 's'}</span></h3>
+              {vendors.length === 0 && <div style={{ color: 'var(--ink-4)', fontSize: 13, padding: '4px 0 8px' }}>No vendors in this category yet</div>}
+              {vendors.map(p => (
           <div className="card" key={p.id} style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <b>{p.name}</b>
@@ -222,7 +232,10 @@ function SettingsTab({ providers, services, reload }) {
               {!services.some(s => s.provider_id === p.id) && <span className="tag gray">No services yet</span>}
             </div>
           </div>
-        ))}
+              ))}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -235,7 +248,7 @@ function ShipmentForm({ ship, customers, consignees, providers, services, onSave
   const toast = useToast();
   const isEdit = !!ship;
   const [f, setF] = useState(() => ship ? { ...ship } : {
-    customer_id: '', provider: '', service: '', awb: '', ship_date: new Date().toISOString().slice(0, 10), status: 'Booked',
+    customer_id: '', service_category: 'International', service_subtype: '', provider: '', service: '', awb: '', ship_date: new Date().toISOString().slice(0, 10), status: 'Booked',
     from_address: '', from_country: 'India', from_pincode: '',
     consignee_id: '', to_company: '', to_contact: '', to_address: '', to_country: '', to_phone: '',
     invoice_no: '', invoice_date: '', invoice_value: '', currency: 'USD', incoterm: '', export_type: '',
@@ -262,7 +275,7 @@ function ShipmentForm({ ship, customers, consignees, providers, services, onSave
       if (!parsed.length) { toast('PDF format not recognized — fill manually', true); return; }
       const mg = mergeParsed(parsed);
       setF(s => {
-        const next = { ...s };
+        const next = { ...s, service_category: 'International' };
         ['awb', 'ship_date', 'provider', 'from_address', 'from_country', 'from_pincode',
          'to_company', 'to_contact', 'to_address', 'to_country', 'to_phone',
          'invoice_no', 'invoice_date', 'invoice_value', 'currency', 'incoterm', 'export_type', 'items_desc']
@@ -332,10 +345,23 @@ function ShipmentForm({ ship, customers, consignees, providers, services, onSave
             {customers.filter(c => c.active).map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
           </select>
         </Field>
-        <Field label="Service Provider">
+        <Field label="Service Type *">
+          <select value={f.service_category} onChange={e => setF(s => ({ ...s, service_category: e.target.value, service_subtype: '', provider: '', service: '' }))}>
+            {SERVICE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+        </Field>
+        {f.service_category === 'Domestic' ? (
+          <Field label="Domestic Service">
+            <select value={f.service_subtype} onChange={e => set('service_subtype', e.target.value)}>
+              <option value="">Select…</option>
+              {DOMESTIC_SUBTYPES.map(x => <option key={x}>{x}</option>)}
+            </select>
+          </Field>
+        ) : <div />}
+        <Field label="Vendor / Provider">
           <select value={f.provider} onChange={e => setF(s => ({ ...s, provider: e.target.value, service: '' }))}>
             <option value="">Select…</option>
-            {providers.map(p => <option key={p.id}>{p.name}</option>)}
+            {providers.filter(p => (p.category || 'International') === f.service_category).map(p => <option key={p.id}>{p.name}</option>)}
             {f.provider && !providers.some(p => p.name === f.provider) && <option value={f.provider}>{f.provider} (from PDF)</option>}
           </select>
         </Field>
@@ -489,6 +515,7 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
   const [shipments, setShipments] = useState(null);
   const [search, setSearch] = useState('');
   const [custFilter, setCustFilter] = useState('');
+  const [catFilter, setCatFilter] = useState('all');
   const [form, setForm] = useState(null); // null | 'new' | shipment(with boxes)
   const [drawerId, setDrawerId] = useState(null);
 
@@ -504,14 +531,17 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
   const rows = useMemo(() => {
     const q = search.toLowerCase();
     return (shipments || []).filter(s => {
+      if (catFilter !== 'all' && (s.service_category || 'International') !== catFilter) return false;
       if (custFilter && String(s.customer_id) !== custFilter) return false;
       if (!q) return true;
       return [s.awb, s.customer_name, s.customer_code, s.to_company, s.provider].join(' ').toLowerCase().includes(q);
     });
-  }, [shipments, search, custFilter]);
+  }, [shipments, search, custFilter, catFilter]);
 
   return (
     <section>
+      <TabBar active={catFilter} onChange={setCatFilter}
+        tabs={[{ k: 'all', label: 'All Services' }, ...SERVICE_CATEGORIES.map(c => ({ k: c.key, label: c.label }))]} />
       <div className="toolbar">
         <button className="btn" onClick={() => setForm('new')}>＋ New Billing Item</button>
         <SearchInput placeholder="Search AWB / customer / consignee…" value={search} onChange={e => setSearch(e.target.value)} />
@@ -522,15 +552,16 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
       </div>
       <div className="card" style={{ padding: 0, overflow: 'auto' }}>
         <table>
-          <thead><tr><th>Date</th><th>AWB</th><th>Customer</th><th>Carrier / Service</th><th>Consignee</th><th>Dest</th><th>Boxes</th><th>Chg. Wt (kg)</th><th>Rate</th><th>Amount ₹</th><th>Status</th></tr></thead>
+          <thead><tr><th>Date</th><th>AWB / Ref</th><th>Customer</th><th>Service Type</th><th>Vendor</th><th>Consignee</th><th>Dest</th><th>Boxes</th><th>Chg. Wt (kg)</th><th>Rate</th><th>Amount ₹</th><th>Status</th></tr></thead>
           <tbody>
-            {shipments === null && <tr><td colSpan={11} className="empty">Loading…</td></tr>}
-            {shipments !== null && rows.length === 0 && <tr><td colSpan={11} className="empty">No shipments yet</td></tr>}
+            {shipments === null && <tr><td colSpan={12} className="empty">Loading…</td></tr>}
+            {shipments !== null && rows.length === 0 && <tr><td colSpan={12} className="empty">No shipments yet</td></tr>}
             {rows.map(s => (
               <tr className="row" key={s.id} onClick={() => setDrawerId(s.id)}>
                 <td>{s.ship_date}</td>
                 <td className="mono"><b>{s.awb}</b></td>
                 <td>{s.customer_code}</td>
+                <td><span className="tag">{catLabel(s.service_category)}{s.service_subtype ? ' · ' + s.service_subtype : ''}</span></td>
                 <td>{s.provider}{s.service ? ' · ' + s.service : ''}</td>
                 <td>{s.to_company}</td>
                 <td>{s.to_country}</td>
@@ -859,7 +890,7 @@ function Dashboard({ userName, onLogout }) {
   const label = (TABS.find(t => t[0] === tab) || TABS[0])[1];
   return (
     <div className="layout">
-      <Sidebar subtitle="Intl Billing" activeKey={tab}
+      <Sidebar subtitle="Billing Platform" activeKey={tab}
         items={TABS.map(([k, l, g, ic]) => ({ key: k, href: TAB_PATHS[k], label: l, icon: ic }))} />
       <div className="content">
         <div className="topbar">

@@ -179,6 +179,15 @@ export function LoginHead({ subtitle }) {
   );
 }
 
+export const SERVICE_CATEGORIES = [
+  { key: 'Domestic', label: 'Domestic', glyph: '🚚' },
+  { key: 'International', label: 'International', glyph: '✈️' },
+  { key: 'FTL', label: 'Full Truck Load', glyph: '🛻' },
+  { key: 'Railway', label: 'Railway Logistics', glyph: '🚆' }
+];
+export const DOMESTIC_SUBTYPES = ['LTL', '1-2 Kg Parcel'];
+export const catLabel = k => (SERVICE_CATEGORIES.find(c => c.key === k) || {}).label || k || '—';
+
 export const KYC_CATEGORIES = ['IEC Certificate', 'GST Certificate', 'PAN Card', 'Aadhaar Card', 'LUT', 'AD Code Letter', 'Cancelled Cheque', 'Authorization Letter', 'Import Export Documents', 'Other'];
 
 export function TabBar({ tabs, active, onChange }) {
@@ -482,7 +491,8 @@ export function ShipmentDetail({ s, showCustomer }) {
       <KV rows={[
         showCustomer ? ['Customer', `${s.customer_code} — ${s.customer_name}`] : ['Customer', undefined],
         ['AWB', <span key="a" className="mono"><b>{s.awb || '—'}</b></span>],
-        ['Carrier / Service', `${s.provider || '—'}${s.service ? ' · ' + s.service : ''}`],
+        ['Service Type', `${catLabel(s.service_category)}${s.service_subtype ? ' · ' + s.service_subtype : ''}`],
+        ['Vendor / Service', `${s.provider || '—'}${s.service ? ' · ' + s.service : ''}`],
         ['Date', s.ship_date || '—']
       ]} />
       <h3>Route</h3>
