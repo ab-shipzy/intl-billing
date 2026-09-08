@@ -242,8 +242,39 @@ function ShipmentForm({ ship, customers, consignees, providers, services, onSave
   });
   const [boxes, setBoxes] = useState(() => (ship && ship.boxes && ship.boxes.length) ? ship.boxes.map(b => ({ ...b })) : [{ ...EMPTY_BOX }]);
   const [busy, setBusy] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [pdfFiles, setPdfFiles] = useState([]); // parsed PDFs, auto-attached as documents on save
   const set = (k, v) => setF(s => ({ ...s, [k]: v }));
   const setBox = (i, k, v) => setBoxes(bs => bs.map((b, j) => j === i ? { ...b, [k]: v } : b));
+
+  const autofillFromPdfs = async files => {
+    if (!files.length) return;
+    setParsing(true);
+    try {
+      const { parsePdfFile } = await import('../shared/pdfextract.js');
+      const { mergeParsed } = await import('../shared/labelparse.js');
+      const parsed = [];
+      for (const file of files) {
+        const p = await parsePdfFile(file);
+        if (p) parsed.push(p);
+      }
+      if (!parsed.length) { toast('PDF format not recognized — fill manually', true); return; }
+      const mg = mergeParsed(parsed);
+      setF(s => {
+        const next = { ...s };
+        ['awb', 'ship_date', 'provider', 'from_address', 'from_country', 'from_pincode',
+         'to_company', 'to_contact', 'to_address', 'to_country', 'to_phone',
+         'invoice_no', 'invoice_date', 'invoice_value', 'currency', 'incoterm', 'export_type', 'items_desc']
+          .forEach(k => { if (mg[k] !== undefined && mg[k] !== '') next[k] = mg[k]; });
+        return next;
+      });
+      if (mg.boxes && mg.boxes.length) setBoxes(mg.boxes.map(b => ({ ...b })));
+      setPdfFiles(prev => [...prev, ...files]);
+      toast(`Auto-filled from ${parsed.length} PDF${parsed.length > 1 ? 's' : ''} — verify before saving`);
+    } catch (e) {
+      toast('Parse failed: ' + e.message, true);
+    } finally { setParsing(false); }
+  };
 
   const w = useMemo(() => computeWeights(boxes), [boxes]);
   const autoAmount = f.rate ? (w.chargeable * Number(f.rate)).toFixed(2) : '';
@@ -267,14 +298,31 @@ function ShipmentForm({ ship, customers, consignees, providers, services, onSave
     setBusy(true);
     try {
       const body = { ...f, consignee_id: f.consignee_id || null, boxes };
+      let sid = isEdit ? ship.id : null;
       if (isEdit) await api('/api/shipments/' + ship.id, { method: 'PUT', body });
-      else await api('/api/shipments', { method: 'POST', body });
+      else { const r = await api('/api/shipments', { method: 'POST', body }); sid = r.id; }
+      // auto-attach the parsed PDFs to the shipment drawer
+      if (pdfFiles.length && sid) {
+        try {
+          const arr = [];
+          for (const file of pdfFiles) arr.push({ name: file.name, data: await fileToB64(file) });
+          await api(`/api/shipments/${sid}/documents`, { method: 'POST', body: { files: arr } });
+          toast('Saved — PDFs attached to shipment drawer');
+        } catch (e) { toast('Saved, but PDF attach failed: ' + e.message, true); }
+      }
       onSaved();
     } catch (e) { toast(e.message, true); } finally { setBusy(false); }
   };
 
   return (
     <Modal title={isEdit ? 'Edit Billing Item' : 'New Billing Item'} onClose={onClose}>
+      <div style={{ border: '2px dashed var(--blue)', borderRadius: 10, padding: '12px 14px', background: '#f0f7ff', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <b style={{ color: 'var(--navy)' }}>📄 Upload AWB label / invoice PDF to auto-fill</b>
+        <input type="file" accept="application/pdf" multiple style={{ width: 'auto', flex: 1, minWidth: 200 }}
+          onChange={e => { autofillFromPdfs([...e.target.files]); e.target.value = ''; }} disabled={parsing} />
+        {parsing && <span style={{ color: 'var(--blue)', fontWeight: 600 }}>Parsing…</span>}
+        {pdfFiles.length > 0 && <span className="tag mint">{pdfFiles.length} PDF{pdfFiles.length > 1 ? 's' : ''} will be attached on save</span>}
+      </div>
       <h3>Customer &amp; Service</h3>
       <div className="grid g3">
         <Field label="Customer *">
@@ -287,6 +335,7 @@ function ShipmentForm({ ship, customers, consignees, providers, services, onSave
           <select value={f.provider} onChange={e => setF(s => ({ ...s, provider: e.target.value, service: '' }))}>
             <option value="">Select…</option>
             {providers.map(p => <option key={p.id}>{p.name}</option>)}
+            {f.provider && !providers.some(p => p.name === f.provider) && <option value={f.provider}>{f.provider} (from PDF)</option>}
           </select>
         </Field>
         <Field label="Service">
@@ -319,7 +368,7 @@ function ShipmentForm({ ship, customers, consignees, providers, services, onSave
         <Field label="Country"><input value={f.to_country} onChange={e => set('to_country', e.target.value)} /></Field>
         <Field label="Phone"><input value={f.to_phone} onChange={e => set('to_phone', e.target.value)} /></Field>
       </div>
-      <h3>Boxes <button className="btn sm ghost" style={{ marginLeft: 8 }} onClick={() => setBoxes(bs => [...bs, { ...EMPTY_BOX }])}>＋ Add box category</button></h3>
+      <h3>Boxes</h3>
       <div className="boxrow" style={{ marginBottom: 2 }}>
         <label>Count</label><label>L (cm)</label><label>W (cm)</label><label>H (cm)</label><label>Wt/box (kg)</label><label>Divisor</label><label></label>
       </div>
@@ -336,6 +385,7 @@ function ShipmentForm({ ship, customers, consignees, providers, services, onSave
           <button className="btn sm danger" onClick={() => setBoxes(bs => bs.length > 1 ? bs.filter((_, j) => j !== i) : bs)}>✕</button>
         </div>
       ))}
+      <button className="btn ghost" style={{ width: '100%', borderStyle: 'dashed', marginTop: 4 }} onClick={() => setBoxes(bs => [...bs, { ...EMPTY_BOX }])}>＋ Add another box category</button>
       <div className="wsum">
         <span>Boxes: <b>{w.count}</b></span>
         <span>Actual: <b>{w.actual.toFixed(2)}</b> kg</span>
