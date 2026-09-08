@@ -294,6 +294,137 @@ export function WeatherChip() {
   );
 }
 
+
+// ===== Shell components: sidebar, topbar clock, spotlight =====
+export function HeaderClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return (
+    <div className="hclock" aria-hidden="true">
+      <div className="t">{hh}:{mm}<span className="sec">:{ss}</span></div>
+      <div className="d">{now.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</div>
+    </div>
+  );
+}
+
+export function Sidebar({ subtitle, items, activeKey, footName, footRole, onLogout }) {
+  return (
+    <aside className="sidebar">
+      <div className="sb-brand">
+        <img src={logoMark} alt="ShipzyCart" />
+        <div>
+          <div className="t">Shipzy<span>Cart</span></div>
+          <div className="s">{subtitle}</div>
+        </div>
+      </div>
+      <nav className="sb-nav">
+        {items.map(it => (
+          <a key={it.key} href={it.href} className={activeKey === it.key ? 'active' : ''}>
+            <span className="glyph">{it.glyph}</span>
+            <span className="lbl">{it.label}</span>
+          </a>
+        ))}
+      </nav>
+      <div className="sb-foot">
+        <Avatar name={footName} />
+        <div className="who">
+          <div className="n">{footName}</div>
+          <div className="r">{footRole}</div>
+        </div>
+        <button className="out" onClick={onLogout}>Logout</button>
+      </div>
+    </aside>
+  );
+}
+
+export function Spotlight({ getSources }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [items, setItems] = useState([]);
+  const [sel, setSel] = useState(0);
+
+  useEffect(() => {
+    const h = e => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setOpen(o => !o); }
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
+
+  useEffect(() => {
+    if (!open) { setQ(''); setSel(0); return; }
+    let dead = false;
+    getSources().then(list => { if (!dead) setItems(list || []); }).catch(() => {});
+    return () => { dead = true; };
+  }, [open]);
+
+  const ql = q.trim().toLowerCase();
+  const filtered = !ql ? items.slice(0, 30)
+    : items.filter(it => (it.label + ' ' + (it.sub || '')).toLowerCase().includes(ql)).slice(0, 30);
+
+  const run = it => { setOpen(false); it.action(); };
+
+  useEffect(() => { setSel(0); }, [ql]);
+
+  const onKey = e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSel(x => Math.min(x + 1, filtered.length - 1)); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setSel(x => Math.max(x - 1, 0)); }
+    if (e.key === 'Enter' && filtered[sel]) run(filtered[sel]);
+  };
+
+  const groups = [];
+  filtered.forEach(it => {
+    let g = groups.find(x => x.name === it.group);
+    if (!g) { g = { name: it.group, list: [] }; groups.push(g); }
+    g.list.push(it);
+  });
+
+  return (
+    <>
+      <button className="spotbtn" onClick={() => setOpen(true)}>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+        Search <kbd>Ctrl K</kbd>
+      </button>
+      {open && (
+        <>
+          <div className="spotlight-ov" onClick={() => setOpen(false)} />
+          <div className="spotlight">
+            <div className="sin">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)} onKeyDown={onKey} placeholder="Search shipments, customers, pages…" />
+            </div>
+            <div className="results">
+              {filtered.length === 0 && <div className="nores">No results{ql ? ` for "${q}"` : ''}</div>}
+              {groups.map(g => (
+                <div key={g.name}>
+                  <div className="grp">{g.name}</div>
+                  {g.list.map(it => {
+                    const idx = filtered.indexOf(it);
+                    return (
+                      <div key={idx} className={'item' + (idx === sel ? ' sel' : '')} onClick={() => run(it)} onMouseEnter={() => setSel(idx)}>
+                        <span className="glyph">{it.glyph || '·'}</span>
+                        <span className="lab">{it.label}</span>
+                        {it.sub && <span className="sub">{it.sub}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 export function Avatar({ name }) {
   return <div className="avatar" title={name}>{(name || '?').trim().charAt(0).toUpperCase()}</div>;
 }

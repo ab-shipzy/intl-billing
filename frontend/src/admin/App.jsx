@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, SearchInput, WeatherChip, Avatar, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
+import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, SearchInput, WeatherChip, Avatar, Sidebar, HeaderClock, Spotlight, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
 
 const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA', 'CPT', 'CIP'];
 const EXPORT_TYPES = ['', 'LUT', 'IGST', 'Non-commercial'];
@@ -496,6 +496,10 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
     api('/api/shipments').then(setShipments).catch(e => { setShipments([]); toast(e.message, true); });
   }, []);
   useEffect(reload, [reload]);
+  useEffect(() => {
+    const id = sessionStorage.getItem('szc_open_ship');
+    if (id) { sessionStorage.removeItem('szc_open_ship'); setDrawerId(Number(id)); }
+  }, []);
 
   const rows = useMemo(() => {
     const q = search.toLowerCase();
@@ -823,30 +827,57 @@ function Dashboard({ userName, onLogout }) {
   const loadServices = useCallback(() => api('/api/settings/services').then(d => { setProviders(d.providers); setServices(d.services); }).catch(e => toast(e.message, true)), []);
   useEffect(() => { loadCustomers(); loadConsignees(); loadServices(); }, []);
 
-  const TABS = [['shipments', 'Shipments'], ['customers', 'Customers'], ['consignees', 'Consignees'], ['kyc', 'KYC Docs'], ['spot-rates', 'Spot Rates'], ['settings', 'Settings']];
+  const TABS = [
+    ['shipments', 'Shipments', '📦'], ['customers', 'Customers', '👥'], ['consignees', 'Consignees', '🏢'],
+    ['kyc', 'KYC Docs', '🪪'], ['spot-rates', 'Spot Rates', '⚡'], ['settings', 'Settings', '⚙️']
+  ];
+  const spotlightSources = async () => {
+    const items = TABS.map(([k, l, g]) => ({ group: 'Pages', glyph: g, label: l, action: () => { window.location.href = TAB_PATHS[k]; } }));
+    try {
+      const [ships, spots] = await Promise.all([api('/api/shipments'), api('/api/spot-rates')]);
+      ships.forEach(s2 => items.push({
+        group: 'Shipments', glyph: '📦',
+        label: `${s2.awb || '#' + s2.id} · ${s2.customer_code}`,
+        sub: `${s2.to_company || ''} ${s2.to_country || ''} · ₹${fmt(s2.amount)}`,
+        action: () => { sessionStorage.setItem('szc_open_ship', s2.id); window.location.href = '/admin'; }
+      }));
+      customers.forEach(c2 => items.push({
+        group: 'Customers', glyph: '👥', label: `${c2.code} — ${c2.name}`, sub: c2.email || c2.phone || '',
+        action: () => { window.location.href = '/admin/customers'; }
+      }));
+      consignees.forEach(n2 => items.push({
+        group: 'Consignees', glyph: '🏢', label: n2.company, sub: n2.country || '',
+        action: () => { window.location.href = '/admin/consignees'; }
+      }));
+      spots.forEach(r2 => items.push({
+        group: 'Spot Rates', glyph: '⚡', label: `${r2.customer_code} · ₹${fmt(r2.rate)}/kg`, sub: `${r2.to_country || ''} · ${r2.status}`,
+        action: () => { window.location.href = '/admin/spot-rates'; }
+      }));
+    } catch (e) {}
+    return items;
+  };
+  const label = (TABS.find(t => t[0] === tab) || TABS[0])[1];
   return (
-    <>
-      <header>
-        <BrandBlock subtitle="Intl Billing" />
-        <nav>
-          {TABS.map(([k, l]) => <a key={k} href={TAB_PATHS[k]} className={tab === k ? 'active' : ''}>{l}</a>)}
-        </nav>
-        <div className="right">
+    <div className="layout">
+      <Sidebar subtitle="Intl Billing" activeKey={tab} footName={userName} footRole="Admin / Ops" onLogout={onLogout}
+        items={TABS.map(([k, l, g]) => ({ key: k, href: TAB_PATHS[k], label: l, glyph: g }))} />
+      <div className="content">
+        <div className="topbar">
+          <div className="pagetitle">{label}</div>
+          <Spotlight getSources={spotlightSources} />
           <WeatherChip />
-          <span className="mono">{userName}</span>
-          <Avatar name={userName} />
-          <button className="btn ghost dark" onClick={onLogout}>Logout</button>
+          <HeaderClock />
         </div>
-      </header>
-      <main className="shipzy-page-in">
+        <main className="shipzy-page-in">
         {tab === 'shipments' && <ShipmentsTab customers={customers} consignees={consignees} providers={providers} services={services} />}
         {tab === 'customers' && <CustomersTab customers={customers} reload={loadCustomers} />}
         {tab === 'consignees' && <ConsigneesTab consignees={consignees} customers={customers} reload={loadConsignees} />}
         {tab === 'kyc' && <KycTab customers={customers} />}
         {tab === 'spot-rates' && <SpotRatesTab customers={customers} />}
         {tab === 'settings' && <SettingsTab providers={providers} services={services} reload={loadServices} />}
-      </main>
-    </>
+        </main>
+      </div>
+    </div>
   );
 }
 

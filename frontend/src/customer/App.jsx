@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, WeatherChip, Avatar, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
+import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, WeatherChip, Avatar, Sidebar, HeaderClock, Spotlight, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
 
 const PAGES = { shipments: '/', kyc: '/kyc', rates: '/rates' };
 function pageFromPath() {
@@ -64,6 +64,10 @@ function ShipmentsPage() {
     api('/api/my/shipments').then(setRows).catch(e => { setRows(r => r || []); toast(e.message, true); });
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const id = sessionStorage.getItem('szc_open_ship');
+    if (id) { sessionStorage.removeItem('szc_open_ship'); open(Number(id)); }
+  }, []);
   const live = useLive('shipments', load);
 
   const open = async id => {
@@ -236,27 +240,46 @@ function RatesPage() {
 // ---------- shell ----------
 function Dashboard({ me, onLogout }) {
   const page = pageFromPath();
-  const NAV = [['shipments', 'Shipments'], ['kyc', 'KYC Docs'], ['rates', 'Spot Rates']];
+  const NAV = [['shipments', 'Shipments', '📦'], ['kyc', 'KYC Docs', '🪪'], ['rates', 'Spot Rates', '⚡']];
+  const spotlightSources = async () => {
+    const items = NAV.map(([k, l, g]) => ({ group: 'Pages', glyph: g, label: l, action: () => { window.location.href = PAGES[k]; } }));
+    try {
+      const [ships, kyc, rates] = await Promise.all([api('/api/my/shipments'), api('/api/my/kyc'), api('/api/my/spot-rates')]);
+      ships.forEach(s2 => items.push({
+        group: 'Shipments', glyph: '📦', label: s2.awb || '#' + s2.id,
+        sub: `${s2.to_company || ''} ${s2.to_country || ''} · ₹${fmt(s2.amount)}`,
+        action: () => { sessionStorage.setItem('szc_open_ship', s2.id); window.location.href = '/'; }
+      }));
+      kyc.forEach(d2 => items.push({
+        group: 'KYC Docs', glyph: '🪪', label: d2.original_name, sub: d2.category,
+        action: () => { window.location.href = '/kyc'; }
+      }));
+      rates.forEach(r2 => items.push({
+        group: 'Spot Rates', glyph: '⚡', label: `₹${fmt(r2.rate)}/kg · ${r2.to_country || ''}`, sub: r2.status,
+        action: () => { window.location.href = '/rates'; }
+      }));
+    } catch (e) {}
+    return items;
+  };
+  const label = (NAV.find(t => t[0] === page) || NAV[0])[1];
   return (
-    <>
-      <header>
-        <BrandBlock subtitle="Customer Portal" />
-        <nav>
-          {NAV.map(([k, l]) => <a key={k} href={PAGES[k]} className={page === k ? 'active' : ''}>{l}</a>)}
-        </nav>
-        <div className="right">
+    <div className="layout">
+      <Sidebar subtitle="Customer Portal" activeKey={page} footName={me.name} footRole={me.code} onLogout={onLogout}
+        items={NAV.map(([k, l, g]) => ({ key: k, href: PAGES[k], label: l, glyph: g }))} />
+      <div className="content">
+        <div className="topbar">
+          <div className="pagetitle">{label}</div>
+          <Spotlight getSources={spotlightSources} />
           <WeatherChip />
-          <span className="mono">{me.code} · {me.name}</span>
-          <Avatar name={me.name} />
-          <button className="btn ghost dark" onClick={onLogout}>Logout</button>
+          <HeaderClock />
         </div>
-      </header>
-      <main className="shipzy-page-in">
-        {page === 'shipments' && <ShipmentsPage />}
-        {page === 'kyc' && <KycPage />}
-        {page === 'rates' && <RatesPage />}
-      </main>
-    </>
+        <main className="shipzy-page-in">
+          {page === 'shipments' && <ShipmentsPage />}
+          {page === 'kyc' && <KycPage />}
+          {page === 'rates' && <RatesPage />}
+        </main>
+      </div>
+    </div>
   );
 }
 
