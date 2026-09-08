@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
+import { api, AuthError, fmt, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, StatusTag, ShipmentDetail, DocList, Drawer, TabBar, KYC_CATEGORIES, Field } from '../shared/shared.jsx';
 
 const PAGES = { shipments: '/', kyc: '/kyc', rates: '/rates' };
 function pageFromPath() {
@@ -37,7 +37,8 @@ function Login({ onLoggedIn }) {
     } finally { setBusy(false); }
   };
   return (
-    <div className="loginwrap">
+    <div className="loginpage">
+      <LoginClock />
       <div className="logincard">
         <LoginHead subtitle="Customer Portal" />
         <div className="body grid">
@@ -45,7 +46,7 @@ function Login({ onLoggedIn }) {
             <input className="mono" value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. SZC-ACME" autoCapitalize="characters" /></div>
           <div><label>Password</label>
             <input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} /></div>
-          <button className="btn" onClick={submit} disabled={busy}>{busy ? 'Logging in…' : 'Login'}</button>
+          <button className="btn login" onClick={submit} disabled={busy || !code.trim() || !pw}>{busy && <Spinner size={16} />}{busy ? 'Signing in…' : 'Sign in'}</button>
         </div>
       </div>
     </div>
@@ -248,7 +249,7 @@ function Dashboard({ me, onLogout }) {
           <button className="btn ghost dark" onClick={onLogout}>Logout</button>
         </div>
       </header>
-      <main>
+      <main className="shipzy-page-in">
         {page === 'shipments' && <ShipmentsPage />}
         {page === 'kyc' && <KycPage />}
         {page === 'rates' && <RatesPage />}

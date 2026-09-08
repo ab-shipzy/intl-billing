@@ -96,3 +96,19 @@ textarea{resize:vertical;min-height:56px}
 .sumstrip>div{background:#f0f7ff;border:1px solid #cfe3ff;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
 .sumstrip span{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:700}
 .sumstrip b{font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--navy)}
+
+/* FTL aesthetics */
+.loginpage{min-height:100vh;background:#fff;display:grid;place-items:center;padding:16px;position:relative;overflow:hidden}
+.login-clock{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;user-select:none}
+@media(min-width:768px){.login-clock{display:flex}}
+.login-clock .time{font-family:'JetBrains Mono',monospace;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#e2e8f0;line-height:1;font-size:clamp(120px,18vw,280px)}
+.login-clock .time .sec{color:#f1f5f9}
+.login-clock .date{margin-top:16px;color:#cbd5e1;font-weight:500;text-transform:uppercase;letter-spacing:.3em;font-size:clamp(11px,1.2vw,14px)}
+.logincard{position:relative;z-index:1;width:100%;max-width:400px}
+@keyframes shipzy-page-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.shipzy-page-in{animation:shipzy-page-in .25s ease both}
+.searchwrap{position:relative;flex:1;min-width:220px}
+.searchwrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--ink-4);pointer-events:none}
+.searchwrap input{width:100%;padding-left:32px}
+.btn.login{width:100%;padding:10px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 10px rgba(0,116,255,.3)}
+.btn.login:disabled{background:#f1f5f9;color:#94a3b8;box-shadow:none}

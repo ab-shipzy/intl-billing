@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
+import { api, AuthError, fmt, computeWeights, fileToB64, ToastProvider, useToast, BootLoader, BrandBlock, LoginHead, LoginClock, Spinner, SearchInput, StatusTag, ShipmentDetail, DocList, Modal, Drawer, Field, TabBar, KYC_CATEGORIES } from '../shared/shared.jsx';
 
 const INCOTERMS = ['', 'EXW', 'FOB', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA', 'CPT', 'CIP'];
 const EXPORT_TYPES = ['', 'LUT', 'IGST', 'Non-commercial'];
@@ -23,13 +23,14 @@ function Login({ onLoggedIn }) {
     } finally { setBusy(false); }
   };
   return (
-    <div className="loginwrap">
+    <div className="loginpage">
+      <LoginClock />
       <div className="logincard">
         <LoginHead subtitle="Intl Billing · Admin" />
         <div className="body grid">
           <Field label="Username"><input value={u} onChange={e => setU(e.target.value)} /></Field>
           <Field label="Password"><input type="password" value={p} onChange={e => setP(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} /></Field>
-          <button className="btn" onClick={submit} disabled={busy}>{busy ? 'Logging in…' : 'Login'}</button>
+          <button className="btn login" onClick={submit} disabled={busy || !u || !p}>{busy && <Spinner size={16} />}{busy ? 'Signing in…' : 'Sign in'}</button>
         </div>
       </div>
     </div>
@@ -509,7 +510,7 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
     <section>
       <div className="toolbar">
         <button className="btn" onClick={() => setForm('new')}>＋ New Billing Item</button>
-        <input placeholder="Search AWB / customer / consignee…" style={{ flex: 1, minWidth: 220 }} value={search} onChange={e => setSearch(e.target.value)} />
+        <SearchInput placeholder="Search AWB / customer / consignee…" value={search} onChange={e => setSearch(e.target.value)} />
         <select value={custFilter} onChange={e => setCustFilter(e.target.value)}>
           <option value="">All customers</option>
           {customers.map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
@@ -835,7 +836,7 @@ function Dashboard({ userName, onLogout }) {
           <button className="btn ghost dark" onClick={onLogout}>Logout</button>
         </div>
       </header>
-      <main>
+      <main className="shipzy-page-in">
         {tab === 'shipments' && <ShipmentsTab customers={customers} consignees={consignees} providers={providers} services={services} />}
         {tab === 'customers' && <CustomersTab customers={customers} reload={loadCustomers} />}
         {tab === 'consignees' && <ConsigneesTab consignees={consignees} customers={customers} reload={loadConsignees} />}

@@ -137,6 +137,33 @@ export function BrandBlock({ subtitle }) {
   );
 }
 
+export function LoginClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const dateStr = now.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  return (
+    <div className="login-clock" aria-hidden="true">
+      <div className="time">{hh}:{mm}<span className="sec">:{ss}</span></div>
+      <div className="date">{dateStr}</div>
+    </div>
+  );
+}
+
+export function SearchInput({ value, onChange, placeholder = 'Search…' }) {
+  return (
+    <div className="searchwrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+      <input value={value} onChange={onChange} placeholder={placeholder} />
+    </div>
+  );
+}
+
 export function LoginHead({ subtitle }) {
   return (
     <div className="loginhead">
