@@ -54,11 +54,20 @@ git push -u origin main
 src/App.java        HTTP server, routing, all API handlers, SQLite schema
 src/Auth.java       HMAC session tokens + PBKDF2 password hashing (JDK crypto)
 lib/                sqlite-jdbc-3.36.0.3.jar (GitHub release) + json.jar (org.json, compiled from source)
-public/admin.html   Admin dashboard (vanilla JS, single file)
-public/index.html   Customer portal (vanilla JS, single file)
-Dockerfile          Two-stage: javac build → JRE runtime
+frontend/           React (Vite) source — two apps: customer portal + admin dashboard
+public/             BUILT frontend (committed) — served by the Java server; do not edit by hand
+Dockerfile          Two-stage: javac build → JRE runtime (no Node needed — public/ is pre-built)
 railway.json        Railway Dockerfile builder config
 ```
+
+## Frontend development
+The frontend is React (Vite), source in `frontend/`. The built output in `public/` is committed so Railway needs no Node build. After changing anything in `frontend/src/`:
+```bash
+cd frontend
+npm install          # first time only
+npm run build        # rebuilds ../public
+```
+then commit both `frontend/` and `public/` changes. For live-reload dev: `npm run dev` (proxies /api to localhost:3000 — run the Java server alongside).
 
 ## Notes
 - Chargeable weight = max(Σ actual, Σ volumetric); volumetric per row = count × (L×W×H)/divisor
