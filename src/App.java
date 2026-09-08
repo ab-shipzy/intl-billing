@@ -506,9 +506,13 @@ public class App {
     }
 
     // ---------- static files ----------
-    static final Map<String, String> MIME = Map.of(
-        "html", "text/html; charset=utf-8", "css", "text/css", "js", "application/javascript",
-        "png", "image/png", "jpg", "image/jpeg", "svg", "image/svg+xml", "ico", "image/x-icon"
+    static final Map<String, String> MIME = Map.ofEntries(
+        Map.entry("html", "text/html; charset=utf-8"), Map.entry("css", "text/css"),
+        Map.entry("js", "application/javascript"), Map.entry("mjs", "application/javascript"),
+        Map.entry("map", "application/json"), Map.entry("json", "application/json"),
+        Map.entry("woff2", "font/woff2"), Map.entry("png", "image/png"),
+        Map.entry("jpg", "image/jpeg"), Map.entry("svg", "image/svg+xml"),
+        Map.entry("ico", "image/x-icon")
     );
 
     static void serveStatic(HttpExchange ex, String p) throws Exception {
