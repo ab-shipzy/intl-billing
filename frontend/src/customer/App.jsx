@@ -267,8 +267,8 @@ function App() {
 
   const onLoggedIn = r => {
     setSplash(r.name || r.code);
-    setTimeout(() => { setMe({ role: 'customer', name: r.name, code: r.code }); }, 1500);
-    setTimeout(() => setSplash(null), 2200);
+    setMe({ role: 'customer', name: r.name, code: r.code });
+    setTimeout(() => setSplash(null), 900);
   };
   const onLogout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} window.location.href = '/'; };
 

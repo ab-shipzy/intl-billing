@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import logoMark from '../assets/logo-mark.png';
 
 // ---------- api ----------
 export class AuthError extends Error {}
@@ -94,7 +95,7 @@ export function Spinner({ size = 28, pulse = false }) {
   return (
     <span className="shipzy-spin-wrap" style={{ width: size, height: size }} role="status" aria-label="Loading">
       <span className="shipzy-spin">
-        <img src="/logo-mark.png" alt="" width={size} height={size} className={pulse ? 'shipzy-pulse' : ''}
+        <img src={logoMark} alt="" width={size} height={size} className={pulse ? 'shipzy-pulse' : ''}
           style={{ display: 'block', objectFit: 'contain', width: size, height: size }} />
       </span>
     </span>
@@ -113,7 +114,7 @@ export function BootLoader() {
 export function Splash({ name }) {
   const [fade, setFade] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setFade(true), 1600);
+    const t = setTimeout(() => setFade(true), 400);
     return () => clearTimeout(t);
   }, []);
   return (
@@ -127,7 +128,7 @@ export function Splash({ name }) {
 export function BrandBlock({ subtitle }) {
   return (
     <div className="brandblock">
-      <img src="/logo-mark.png" alt="ShipzyCart" />
+      <img src={logoMark} alt="ShipzyCart" />
       <div>
         <h1>Shipzy<span>Cart</span></h1>
         <div className="sub">{subtitle}</div>
@@ -141,7 +142,7 @@ export function LoginHead({ subtitle }) {
     <div className="loginhead">
       <div className="dots" />
       <div className="row">
-        <img src="/logo-mark.png" alt="" />
+        <img src={logoMark} alt="" />
         <div>
           <div className="t">ShipzyCart</div>
           <div className="s">{subtitle}</div>

@@ -859,8 +859,8 @@ function App() {
   const onLoggedIn = name => {
     setUserName(name);
     setSplash(name);
-    setTimeout(() => setAuthed(true), 1500);
-    setTimeout(() => setSplash(null), 2200);
+    setAuthed(true);
+    setTimeout(() => setSplash(null), 900);
   };
   const onLogout = async () => { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} location.reload(); };
 
