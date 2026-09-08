@@ -55,6 +55,16 @@ textarea{resize:vertical;min-height:56px}
 .doc a{color:var(--blue);text-decoration:none;font-weight:600;flex:1}
 .foot{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 20px;border-radius:10px;display:none;z-index:99;font-size:13px}
+#splash{position:fixed;inset:0;background:var(--navy);z-index:100;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;opacity:1;transition:opacity .5s}
+#splash.show{display:flex}
+#splash.fade{opacity:0}
+#splash .logo{font-size:26px;font-weight:800;color:#fff}
+#splash .logo span{color:var(--mint)}
+#splash .wel{font-size:18px;color:#cfe3ff;font-weight:600}
+#splash .wel b{color:var(--mint)}
+#splash .bar{width:120px;height:3px;background:#28506b;border-radius:3px;overflow:hidden}
+#splash .bar i{display:block;height:100%;width:0;background:var(--blue);animation:fill 1.4s ease forwards}
+@keyframes fill{to{width:100%}}
 #loginView{max-width:360px;margin:12vh auto}
 .hide{display:none!important}
 .amt{font-family:'JetBrains Mono',monospace;font-weight:600}
@@ -256,6 +266,11 @@ textarea{resize:vertical;min-height:56px}
 </div>
 
 <div id="toast"></div>
+<div id="splash">
+  <div class="logo">Shipzy<span>Cart</span></div>
+  <div class="wel">Welcome, <b id="splashName"></b> 👋</div>
+  <div class="bar"><i></i></div>
+</div>
 
 <script>
 let customers=[],consignees=[],shipments=[],providers=[],services=[],currentShip=null;
@@ -273,8 +288,18 @@ async function api(url,opts={}){
 
 // ---- auth ----
 async function doLogin(){
-  try{await api('/api/login',{method:'POST',body:{role:'admin',username:$('lu').value,password:$('lp').value}});boot();}
-  catch(e){toast('Login failed: '+e.message);}
+  try{
+    await api('/api/login',{method:'POST',body:{role:'admin',username:$('lu').value,password:$('lp').value}});
+    showSplash($('lu').value);
+    setTimeout(boot,1500);
+  }catch(e){toast('Login failed: '+e.message);}
+}
+function showSplash(name){
+  $('splashName').textContent=name;
+  const sp=$('splash');
+  sp.classList.add('show');sp.classList.remove('fade');
+  setTimeout(()=>sp.classList.add('fade'),1600);
+  setTimeout(()=>sp.classList.remove('show'),2150);
 }
 async function logout(){await api('/api/logout',{method:'POST'});location.reload();}
 $('lp').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});

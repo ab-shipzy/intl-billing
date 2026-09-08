@@ -46,6 +46,16 @@ input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px
 .grid{display:grid;gap:10px}
 .hide{display:none!important}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 20px;border-radius:10px;display:none;z-index:99;font-size:13px}
+#splash{position:fixed;inset:0;background:var(--navy);z-index:100;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;opacity:1;transition:opacity .5s}
+#splash.show{display:flex}
+#splash.fade{opacity:0}
+#splash .logo{font-size:26px;font-weight:800;color:#fff}
+#splash .logo span{color:var(--mint)}
+#splash .wel{font-size:18px;color:#cfe3ff;font-weight:600}
+#splash .wel b{color:var(--mint)}
+#splash .bar{width:120px;height:3px;background:#28506b;border-radius:3px;overflow:hidden}
+#splash .bar i{display:block;height:100%;width:0;background:var(--blue);animation:fill 1.4s ease forwards}
+@keyframes fill{to{width:100%}}
 </style>
 </head>
 <body>
@@ -97,6 +107,11 @@ input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px
 </div>
 
 <div id="toast"></div>
+<div id="splash">
+  <div class="logo">Shipzy<span>Cart</span></div>
+  <div class="wel">Welcome, <b id="splashName"></b> 👋</div>
+  <div class="bar"><i></i></div>
+</div>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -113,8 +128,16 @@ async function api(url,opts={}){
 async function doLogin(){
   try{
     const r=await api('/api/login',{method:'POST',body:{role:'customer',code:$('lc').value,password:$('lp').value}});
-    boot();
+    showSplash(r.name||r.code);
+    setTimeout(boot,1500);
   }catch(e){toast(e.message);}
+}
+function showSplash(name){
+  $('splashName').textContent=name;
+  const sp=$('splash');
+  sp.classList.add('show');sp.classList.remove('fade');
+  setTimeout(()=>sp.classList.add('fade'),1600);
+  setTimeout(()=>sp.classList.remove('show'),2150);
 }
 async function logout(){await api('/api/logout',{method:'POST'});location.reload();}
 $('lp').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
