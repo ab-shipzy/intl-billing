@@ -105,7 +105,8 @@ public class App {
             String[] alters = {
                 "ALTER TABLE shipments ADD COLUMN service_category TEXT DEFAULT 'International'",
                 "ALTER TABLE shipments ADD COLUMN service_subtype TEXT DEFAULT ''",
-                "ALTER TABLE providers ADD COLUMN category TEXT DEFAULT 'International'"
+                "ALTER TABLE providers ADD COLUMN category TEXT DEFAULT 'International'",
+                "ALTER TABLE shipments ADD COLUMN extra TEXT DEFAULT ''"
             };
             for (String a : alters) {
                 try (Statement st = db.createStatement()) { st.execute(a); } catch (Exception ignored) {}
@@ -322,6 +323,7 @@ public class App {
 
                 if (p.equals("/api/shipments") && m.equals("GET")) { send(ex, 200, q("SELECT s.*, c.name AS customer_name, c.code AS customer_code FROM shipments s JOIN customers c ON c.id = s.customer_id ORDER BY s.ship_date DESC, s.id DESC").toString()); return; }
                 if (p.equals("/api/shipments") && m.equals("POST")) { shipSave(ex, null); return; }
+                if (p.equals("/api/shipments/bulk") && m.equals("POST")) { shipBulk(ex); return; }
                 if ((mt = P_SHIP_ID.matcher(p)).matches() && m.equals("GET")) { shipDetail(ex, Long.parseLong(mt.group(1))); return; }
                 if ((mt = P_SHIP_ID.matcher(p)).matches() && m.equals("PUT")) { shipSave(ex, Long.parseLong(mt.group(1))); return; }
                 if ((mt = P_SHIP_ID.matcher(p)).matches() && m.equals("DELETE")) { shipDelete(ex, Long.parseLong(mt.group(1))); return; }
@@ -458,16 +460,16 @@ public class App {
             str(b, "provider"), str(b, "service"), str(b, "awb"), str(b, "ship_date"), str(b, "incoterm"), str(b, "export_type"),
             str(b, "invoice_no"), str(b, "invoice_date"), num(b, "invoice_value"), str(b, "currency", "USD"), str(b, "items_desc"),
             w[0], w[1], w[2], (long) w[3], rate, amount, str(b, "status", "Booked"), str(b, "notes"),
-            str(b, "service_category", "International"), str(b, "service_subtype")
+            str(b, "service_category", "International"), str(b, "service_subtype"), str(b, "extra")
         };
         long sid;
         if (id == null) {
-            sid = exec("INSERT INTO shipments (customer_id, from_address, from_country, from_pincode, consignee_id, to_company, to_contact, to_address, to_country, to_phone, provider, service, awb, ship_date, incoterm, export_type, invoice_no, invoice_date, invoice_value, currency, items_desc, actual_weight, volumetric_weight, chargeable_weight, box_count, rate, amount, status, notes, service_category, service_subtype) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", vals);
+            sid = exec("INSERT INTO shipments (customer_id, from_address, from_country, from_pincode, consignee_id, to_company, to_contact, to_address, to_country, to_phone, provider, service, awb, ship_date, incoterm, export_type, invoice_no, invoice_date, invoice_value, currency, items_desc, actual_weight, volumetric_weight, chargeable_weight, box_count, rate, amount, status, notes, service_category, service_subtype, extra) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", vals);
         } else {
             Object[] upd = new Object[vals.length + 1];
             System.arraycopy(vals, 0, upd, 0, vals.length);
             upd[vals.length] = id;
-            exec("UPDATE shipments SET customer_id=?, from_address=?, from_country=?, from_pincode=?, consignee_id=?, to_company=?, to_contact=?, to_address=?, to_country=?, to_phone=?, provider=?, service=?, awb=?, ship_date=?, incoterm=?, export_type=?, invoice_no=?, invoice_date=?, invoice_value=?, currency=?, items_desc=?, actual_weight=?, volumetric_weight=?, chargeable_weight=?, box_count=?, rate=?, amount=?, status=?, notes=?, service_category=?, service_subtype=? WHERE id=?", upd);
+            exec("UPDATE shipments SET customer_id=?, from_address=?, from_country=?, from_pincode=?, consignee_id=?, to_company=?, to_contact=?, to_address=?, to_country=?, to_phone=?, provider=?, service=?, awb=?, ship_date=?, incoterm=?, export_type=?, invoice_no=?, invoice_date=?, invoice_value=?, currency=?, items_desc=?, actual_weight=?, volumetric_weight=?, chargeable_weight=?, box_count=?, rate=?, amount=?, status=?, notes=?, service_category=?, service_subtype=?, extra=? WHERE id=?", upd);
             exec("DELETE FROM boxes WHERE shipment_id=?", id);
             sid = id;
         }
@@ -483,6 +485,40 @@ public class App {
         notifyCustomer(custId);
         if (oldCust != null && !oldCust.equals(custId)) notifyCustomer(oldCust);
         send(ex, 200, new JSONObject().put("ok", true).put("id", sid).toString());
+    }
+
+    static void shipBulk(HttpExchange ex) throws Exception {
+        JSONObject b = jsonBody(ex);
+        Long custId = lng(b, "customer_id");
+        if (custId == null) { err(ex, 400, "customer required"); return; }
+        JSONArray items = b.optJSONArray("items");
+        if (items == null || items.length() == 0) { err(ex, 400, "no items"); return; }
+        if (items.length() > 500) { err(ex, 400, "max 500 rows per import"); return; }
+        int saved = 0;
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject it = items.getJSONObject(i);
+            JSONArray boxes = it.optJSONArray("boxes");
+            double[] w = computeWeights(boxes);
+            double rate = num(it, "rate");
+            double amount = str(it, "amount").isEmpty() ? round2(w[2] * rate) : num(it, "amount");
+            long sid = exec("INSERT INTO shipments (customer_id, from_address, from_country, from_pincode, consignee_id, to_company, to_contact, to_address, to_country, to_phone, provider, service, awb, ship_date, incoterm, export_type, invoice_no, invoice_date, invoice_value, currency, items_desc, actual_weight, volumetric_weight, chargeable_weight, box_count, rate, amount, status, notes, service_category, service_subtype, extra) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                custId, str(it, "from_address"), str(it, "from_country", "India"), str(it, "from_pincode"), null,
+                str(it, "to_company"), str(it, "to_contact"), str(it, "to_address"), str(it, "to_country"), str(it, "to_phone"),
+                str(it, "provider"), str(it, "service"), str(it, "awb"), str(it, "ship_date"), str(it, "incoterm"), str(it, "export_type"),
+                str(it, "invoice_no"), str(it, "invoice_date"), num(it, "invoice_value"), str(it, "currency", "INR"), str(it, "items_desc"),
+                w[0], w[1], w[2], (long) w[3], rate, amount, str(it, "status", "Booked"), str(it, "notes"),
+                str(it, "service_category", "Railway"), str(it, "service_subtype"), str(it, "extra"));
+            if (boxes != null) for (int j = 0; j < boxes.length(); j++) {
+                JSONObject x = boxes.getJSONObject(j);
+                double n = num(x, "count"); if (n <= 0) n = 1;
+                double d = num(x, "divisor"); if (d <= 0) d = 5000;
+                exec("INSERT INTO boxes (shipment_id, count, length, width, height, weight, divisor) VALUES (?,?,?,?,?,?,?)",
+                    sid, (long) n, num(x, "length"), num(x, "width"), num(x, "height"), num(x, "weight"), (long) d);
+            }
+            saved++;
+        }
+        notifyCustomer(custId);
+        send(ex, 200, new JSONObject().put("ok", true).put("count", saved).toString());
     }
 
     static void shipDetail(HttpExchange ex, long id) throws Exception {

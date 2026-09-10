@@ -509,6 +509,76 @@ function ShipmentDrawer({ id, onClose, onEdit, onDeleted }) {
   );
 }
 
+
+// ---------- Excel import ----------
+function ImportModal({ customers, onDone, onClose }) {
+  const toast = useToast();
+  const [cust, setCust] = useState('');
+  const [cat, setCat] = useState('Railway');
+  const [items, setItems] = useState(null);
+  const [fname, setFname] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const parseFile = async file => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const [{ read, utils }, { findHeaderRow, mapRows }] = await Promise.all([
+        import('xlsx'), import('../shared/xlsximport.js')
+      ]);
+      const wb = read(await file.arrayBuffer(), { cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = utils.sheet_to_json(ws, { header: 1, raw: true });
+      const hi = findHeaderRow(rows);
+      const mapped = mapRows(rows[hi], rows.slice(hi + 1), { category: cat });
+      if (!mapped.length) { toast('No importable rows found in this sheet', true); return; }
+      setItems(mapped);
+      setFname(file.name);
+    } catch (e) { toast('Parse failed: ' + e.message, true); } finally { setBusy(false); }
+  };
+
+  const runImport = async () => {
+    if (!cust) return toast('Select customer', true);
+    if (!items) return toast('Choose an Excel file first', true);
+    setBusy(true);
+    try {
+      const r = await api('/api/shipments/bulk', { method: 'POST', body: { customer_id: cust, items: items.map(it => ({ ...it, service_category: cat })) } });
+      toast(`Imported ${r.count} shipments`);
+      onDone();
+    } catch (e) { toast(e.message, true); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal narrow title="Import Shipments from Excel" onClose={onClose}>
+      <div className="grid g2">
+        <Field label="Customer *">
+          <select className={cust ? '' : 'invalid'} value={cust} onChange={e => setCust(e.target.value)}>
+            <option value="">Select…</option>
+            {customers.filter(c => c.active).map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Service Type">
+          <select value={cat} onChange={e => setCat(e.target.value)}>
+            {SERVICE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Excel File (.xlsx)" className="span2">
+          <input type="file" accept=".xlsx,.xls" onChange={e => parseFile(e.target.files[0])} />
+        </Field>
+      </div>
+      {items && (
+        <div style={{ background: 'var(--brand-soft)', border: '1px solid #cfe3ff', borderRadius: 10, padding: '10px 14px', marginTop: 12, fontSize: 13 }}>
+          <b>{fname}</b> — {items.length} shipment rows ready. Unrecognised columns will be saved under "Additional Details" in each shipment's drawer.
+        </div>
+      )}
+      <div className="foot">
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn" onClick={runImport} disabled={busy || !items}>{busy ? 'Working…' : 'Import'}</button>
+      </div>
+    </Modal>
+  );
+}
+
 // ---------- shipments tab ----------
 function ShipmentsTab({ customers, consignees, providers, services }) {
   const toast = useToast();
@@ -518,6 +588,7 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
   const [catFilter, setCatFilter] = useState('all');
   const [form, setForm] = useState(null); // null | 'new' | shipment(with boxes)
   const [drawerId, setDrawerId] = useState(null);
+  const [imp, setImp] = useState(false);
 
   const reload = useCallback(() => {
     api('/api/shipments').then(setShipments).catch(e => { setShipments([]); toast(e.message, true); });
@@ -544,6 +615,7 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
         tabs={[{ k: 'all', label: 'All Services' }, ...SERVICE_CATEGORIES.map(c => ({ k: c.key, label: c.label }))]} />
       <div className="toolbar">
         <button className="btn" onClick={() => setForm('new')}>＋ New Billing Item</button>
+        <button className="btn ghost" onClick={() => setImp(true)}>⬆ Import Excel</button>
         <SearchInput placeholder="Search AWB / customer / consignee…" value={search} onChange={e => setSearch(e.target.value)} />
         <select value={custFilter} onChange={e => setCustFilter(e.target.value)}>
           <option value="">All customers</option>
@@ -583,6 +655,7 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
           onSaved={() => { setForm(null); reload(); }}
         />
       )}
+      {imp && <ImportModal customers={customers} onClose={() => setImp(false)} onDone={() => { setImp(false); reload(); }} />}
       {drawerId && (
         <ShipmentDrawer
           id={drawerId}

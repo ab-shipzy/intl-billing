@@ -1,0 +1,24 @@
+import * as XLSX from 'xlsx';
+import fs from 'fs';
+import { findHeaderRow, mapRows } from './src/shared/xlsximport.js';
+
+const wb = XLSX.read(fs.readFileSync('/mnt/user-data/uploads/Rail_Offiga_-_May__June__July.xlsx'), { cellDates: true });
+const ws = wb.Sheets[wb.SheetNames[0]];
+const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+const hi = findHeaderRow(rows);
+const items = mapRows(rows[hi], rows.slice(hi + 1), { category: 'Railway' });
+console.log('header row:', hi, '| mapped items:', items.length);
+console.log('sample 1:', JSON.stringify(items[0]));
+console.log('sample cancelled-row:', JSON.stringify(items.find(i => !i.ship_date) || 'none'));
+const B = 'http://localhost:5991';
+const login = await fetch(B + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'admin', username: 'admin', password: 'shipzy@2026' }) });
+const cookie = login.headers.get('set-cookie').split(';')[0];
+await fetch(B + '/api/customers', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ code: 'OFFIGA', name: 'Offiga', password: 'p' }) });
+const r = await fetch(B + '/api/shipments/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ customer_id: 1, items }) });
+console.log('bulk result:', await r.text());
+const list = await (await fetch(B + '/api/shipments', { headers: { Cookie: cookie } })).json();
+const rail = list.filter(s => s.service_category === 'Railway');
+console.log('railway shipments in DB:', rail.length);
+console.log('statuses:', rail.reduce((a, s) => { a[s.status] = (a[s.status] || 0) + 1; return a; }, {}));
+const det = await (await fetch(B + '/api/shipments/' + rail[rail.length-1].id, { headers: { Cookie: cookie } })).json();
+console.log('one detail:', det.awb, '|', det.to_company, '|', det.ship_date, '| boxes:', det.boxes.length, '| extra keys:', Object.keys(JSON.parse(det.extra || '{}')));

@@ -518,6 +518,12 @@ export function ShipmentDetail({ s, showCustomer }) {
         ['Rate', <span key="r" className="mono">₹{fmt(s.rate)}/kg</span>]
       ]} />
       {s.notes ? <><h3>Notes</h3><p style={{ fontSize: 13 }}>{s.notes}</p></> : null}
+      {(() => {
+        let ex = null;
+        try { ex = s.extra ? JSON.parse(s.extra) : null; } catch (e) {}
+        if (!ex || !Object.keys(ex).length) return null;
+        return <><h3>Additional Details</h3><KV rows={Object.entries(ex).map(([k, v]) => [k, String(v)])} /></>;
+      })()}
     </>
   );
 }
