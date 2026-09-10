@@ -90,7 +90,7 @@ function ShipmentsPage() {
         <div className="stat"><div className="v">₹{fmt(totA)}</div><div className="l">Total Billed</div></div>
         <div className="stat"><div className="v" style={{ color: live ? '#0b7d6d' : '#94a3b8', fontSize: 14 }}>{live ? '● Live' : '○ Offline'}</div><div className="l">Updates</div></div>
       </div>
-      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+      <div className="card tablecard">
         <table>
           <thead><tr><th>Date</th><th>AWB / Ref</th><th>Service</th><th>Carrier</th><th>From</th><th>To</th><th>Boxes</th><th>Weight (kg)</th><th>Rate</th><th>Amount ₹</th><th>Status</th></tr></thead>
           <tbody>
@@ -181,7 +181,7 @@ function KycPage() {
           <button className="btn" onClick={upload} disabled={busy}>{busy ? 'Uploading…' : 'Upload'}</button>
         </div>
       </div>
-      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+      <div className="card tablecard">
         <table>
           <thead><tr><th>Date</th><th>Category</th><th>Document</th><th>Remark</th><th>Uploaded By</th><th>Size</th></tr></thead>
           <tbody>
@@ -216,7 +216,7 @@ function RatesPage() {
   useLive('spot', load);
 
   return (
-    <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+    <div className="card tablecard">
       <table>
         <thead><tr><th>Date</th><th>From</th><th>To</th><th>Boxes</th><th>Dimensions</th><th>Exp. Wt (kg)</th><th>Rate ₹/kg</th><th>Status</th><th>AWB</th><th>Remark</th></tr></thead>
         <tbody>

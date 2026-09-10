@@ -78,7 +78,7 @@ function CustomersTab({ customers, reload }) {
   return (
     <section>
       <div className="toolbar"><button className="btn" onClick={() => setEditing('new')}>＋ Onboard Customer</button></div>
-      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+      <div className="card tablecard">
         <table>
           <thead><tr><th>Code</th><th>Name</th><th>Email</th><th>Phone</th><th>GSTIN</th><th>Status</th><th></th></tr></thead>
           <tbody>
@@ -151,7 +151,7 @@ function ConsigneesTab({ consignees, customers, reload }) {
   return (
     <section>
       <div className="toolbar"><button className="btn" onClick={() => setEditing('new')}>＋ Add Consignee</button></div>
-      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+      <div className="card tablecard">
         <table>
           <thead><tr><th>Company</th><th>Contact</th><th>Country</th><th>Phone</th><th>Linked Customer</th><th></th></tr></thead>
           <tbody>
@@ -622,7 +622,7 @@ function ShipmentsTab({ customers, consignees, providers, services }) {
           {customers.map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
         </select>
       </div>
-      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+      <div className="card tablecard">
         <table>
           <thead><tr><th>Date</th><th>AWB / Ref</th><th>Customer</th><th>Service Type</th><th>Vendor</th><th>Consignee</th><th>Dest</th><th>Boxes</th><th>Chg. Wt (kg)</th><th>Rate</th><th>Amount ₹</th><th>Status</th></tr></thead>
           <tbody>
@@ -743,7 +743,7 @@ function KycTab({ customers }) {
           {customers.map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
         </select>
       </div>
-      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+      <div className="card tablecard">
         <table>
           <thead><tr><th>Date</th><th>Customer</th><th>Category</th><th>Document</th><th>Remark</th><th>By</th><th></th></tr></thead>
           <tbody>
@@ -875,7 +875,7 @@ function SpotRatesTab({ customers }) {
           {customers.map(c => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
         </select>
       </div>
-      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+      <div className="card tablecard">
         <table>
           <thead><tr><th>Date</th><th>Customer</th><th>From</th><th>To</th><th>Boxes</th><th>Dimensions</th><th>Exp. Wt</th><th>Rate ₹/kg</th><th>Status</th><th>AWB</th><th></th></tr></thead>
           <tbody>
